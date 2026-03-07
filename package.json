@@ -24,6 +24,7 @@
 		"@sveltejs/kit": "latest",
 		"@sveltejs/vite-plugin-svelte": "latest",
 		"@tailwindcss/postcss": "^4.2.1",
+		"@types/pg": "^8.18.0",
 		"autoprefixer": "latest",
 		"postcss": "latest",
 		"svelte": "latest",
