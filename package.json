@@ -1,0 +1,34 @@
+{
+	"name": "revenue-engine-v0.1",
+	"private": true,
+	"version": "0.1.0",
+	"type": "module",
+	"scripts": {
+		"dev": "vite dev",
+		"build": "vite build",
+		"preview": "vite preview",
+		"start": "node build/index.js"
+	},
+	"dependencies": {
+		"@google-cloud/documentai": "latest",
+		"@google-cloud/vertexai": "latest",
+		"crypto-js": "latest",
+		"dotenv": "latest",
+		"pdf-lib": "latest",
+		"pg": "latest",
+		"square": "latest",
+		"svelte-gestures": "latest"
+	},
+	"devDependencies": {
+		"@sveltejs/adapter-node": "latest",
+		"@sveltejs/kit": "latest",
+		"@sveltejs/vite-plugin-svelte": "latest",
+		"@tailwindcss/postcss": "^4.2.1",
+		"autoprefixer": "latest",
+		"postcss": "latest",
+		"svelte": "latest",
+		"tailwindcss": "latest",
+		"typescript": "latest",
+		"vite": "latest"
+	}
+}

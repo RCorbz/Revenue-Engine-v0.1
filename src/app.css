@@ -1,0 +1,26 @@
+@import "tailwindcss";
+
+@theme {
+  /* Define the custom utility natively for Tailwind v4 */
+  --spacing-screen-safe: 100dvh;
+  
+  /* Brand Colors (OBT-22) */
+  --color-revenue: #00c853;
+  --color-retention: #2979ff;
+  --color-reputation: #ff9100;
+}
+
+@layer base {
+  html, body {
+    margin: 0;
+    padding: 0;
+    /* Use the variable we just defined */
+    height: var(--spacing-screen-safe);
+    @apply overflow-hidden bg-slate-950 text-white font-sans antialiased;
+  }
+}
+
+/* Custom utility class map */
+.h-screen-safe {
+  height: var(--spacing-screen-safe);
+}
