@@ -40,7 +40,15 @@
 <main class="h-screen-safe flex flex-col bg-slate-950 text-white p-4">
 	<header class="flex justify-between items-center py-4 border-b border-slate-800">
 		<h1 class="text-xl font-bold tracking-tighter">REV<span class="text-revenue">ENGINE</span></h1>
-		<div class="h-2 w-2 rounded-full bg-revenue animate-pulse"></div>
+		<div class="flex items-center gap-4">
+			<a
+				href="/dashboard"
+				class="text-xs font-bold text-slate-300 hover:text-white transition-colors bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-full border border-slate-700"
+			>
+				OPEN DASHBOARD
+			</a>
+			<div class="h-2 w-2 rounded-full bg-revenue animate-pulse"></div>
+		</div>
 	</header>
 
 	<section class="flex-grow flex flex-col justify-center gap-6">
