@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ToolHiveRegistry>
+  <Resources>
+    <Resource name="Project Bible" path="docs/project-bible.md" strategy="Lazy Load" />
+  </Resources>
+  <Exclusions>
+    <Exclusion path="node_modules" strategy="Hard Excluded" />
+    <Exclusion path="dist" strategy="Hard Excluded" />
+    <Exclusion path="build" strategy="Hard Excluded" />
+  </Exclusions>
+  <!-- NOTE: For code symbol retrieval on large files, prefer 'jcodemunch-mcp' AST tools -->
+</ToolHiveRegistry>

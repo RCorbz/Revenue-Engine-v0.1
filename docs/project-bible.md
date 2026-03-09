@@ -6,7 +6,10 @@
 
 This web application is architected for a GCP-Native, Serverless "Edge-First" deployment to ensure enterprise-grade compliance, scale-to-zero efficiency, and strict budget adherence.
 
-*   **Frontend:** The SvelteKit frontend is deployed using `@sveltejs/adapter-node` configured with `out: 'build'`, `precompress: true`, and the `GCP_` environment prefix. The UI uses Tailwind CSS in a mobile-first, "No-Scroll" layout.
+*   **Frontend:** The SvelteKit frontend is deployed using `@sveltejs/adapter-node` configured with `out: 'build'`, `precompress: true`, and the `GCP_` environment prefix. The UI uses Tailwind CSS in a **mobile-first, thumb-driven "No-Scroll" layout**. All forms must utilize thumb-friendly UI bindings (sliders, dials) rather than keyboard text inputs for numerical data. 
+    *   **Strict No-Scroll:** Forms exceeding height limits must be chunked into progressive disclosure sections (e.g., Scan -> Vitals -> History).
+    *   **3-State Interactions:** Binary/Checklist questions MUST default to an 'Unset' state (e.g., a centered `?`). Users must explicitly swipe left (Fail/No) or swipe right (Pass/Yes) to prevent accidental submissions.
+    *   **Swipe-to-Submit:** Destructive or final actions must use horizontal swipe interactions to confirm intent.
 *   **Compute:** Google Cloud Run containerized via a multi-stage, non-root Dockerfile.
 *   **Database:** Cloud SQL (PostgreSQL 15) utilizing a Private IP configured with a partitioned schema.
 *   **Storage & Identity:** Google Cloud Storage (GCS) with lifecycle policies for generated compliance documents, and Google Cloud Identity Platform for backend Multi-Factor Authentication (MFA).
@@ -16,12 +19,14 @@ This web application is architected for a GCP-Native, Serverless "Edge-First" de
     *   *Gemini 3.1 Flash-Lite:* Low-cost competitor scraping and automated SMS retention generation.
 *   **Payments:** Unified Square API. The system uses the Terminal API for stationary locations and Web Payments SDK (Tap-to-Pay) for mobile field operations.
 
-## 2. ToolHive & Token Optimization Architecture
+## 2. ToolHive & Token Optimization Architecture (The Munch Strategy)
 
-To manage context limits and enforce enterprise-grade builds, you must strictly follow the "Munch" Strategy context architecture.
+To manage context limits and enforce enterprise-grade builds, you must strictly follow the "Munch" Strategy context architecture using `jcodemunch-mcp`.
 
 *   **Token-Dense Mapping:** Utilize `.toolhive/context_map.xml` as the source of truth for the project structure. 
-*   **Exclusions:** The `node_modules`, `.git`, and `dist` folders are strictly excluded from context to save tokens. 
+*   **Symbol Extraction:** Use `jcodemunch-mcp` for AST-based symbol retrieval (classes, functions, methods) to avoid reading entire large files.
+*   **Exclusions:** The `node_modules`, `.git`, and `build` (or `dist`) folders are strictly excluded from context to save tokens via ToolHive's `Hard Excluded` strategy. 
+*   **Symbol-Only Operations:** All deep code analysis must first use `jcodemunch.outline_file` for structural awareness, followed by `jcodemunch.get_symbol` for specific logic retrieval. Reading >100 lines of contiguous implementation code is prohibited unless no AST symbols exist for that file.
 *   **Grounded Access:** The `bible-server` (filesystem MCP) provides read-only access to `/projects/project-bible.pdf`.
 *   **Optimization Flow:** The build sequence relies on `thv run filesystem` to mount the Bible, followed by `thv client register` for real-time IDE file syncing. 
 *   **Caching:** Complex snippets (e.g., encryption utilities) must be cached in ToolHive's persistent secret manager to preserve tokens.
@@ -45,7 +50,8 @@ To manage context limits and enforce enterprise-grade builds, you must strictly 
 *   **Fuzzy Mapping:** Gemini 3.1 Flash normalizes addresses (e.g., "Apt 4" to "Suite 4") to ensure clean Google Maps logic for the Mobile Surcharge Engine.
 
 ### B. "Tinder-Style" Frictionless Intake
-*   **Gesture UI:** A 32-card state machine powered by `svelte-gestures` allows users to swipe Left (No) or Right (Yes).
+*   **Gesture UI:** A 32-card state machine powered by `svelte-gestures` allows users to swipe Left (No) or Right (Yes). **Strict Rule**: Forms must present *only one question at a time* to prevent vertical scrolling. As a card is swiped, it must animate out and the next card animates in.
+*   **Failure Prompts:** If a user swipes Left (Fail/No), the state machine must pause and display a 3-button modal/prompt capturing the *reason* for the failure (e.g., "Prior Condition", "Current Issue", "Other") before allowing progression.
 *   **Smart-Fill:** A Right-Swipe immediately triggers Gemini 3.1 Flash to fetch the most likely specific compliance details (e.g., common field notes or item lists), allowing zero-typing selection.
 *   **Red Flags:** Business-tunable "Hard Stops" intercept disqualifying conditions automatically.
 
@@ -123,7 +129,7 @@ The IDE must configure the following core files to establish guardrails.
 }
 2. .env.example (Secret Guardrail):
 # REVENUE ENGINE CORE
-PROJECT_ID=universal-revenue-engine-2026
+PROJECT_ID=revenue-engine-v01
 DATABASE_URL=postgresql://localhost:5432/revenue_engine
 
 # AI MODELS (Vertex AI)

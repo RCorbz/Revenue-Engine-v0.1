@@ -1,0 +1,5 @@
+﻿1772911586671 START "c:\\Users\\RCorbz\\Desktop\\Revenue Engine v0.1"
+1772911586672 ERROR "src\\lib\\server\\pdf_mapper.ts" 4:38 "Cannot find module './security' or its corresponding type declarations."
+1772911586672 WARNING "src\\routes\\intake\\+page.svelte" 278:9 "Buttons and links should either contain text or have an `aria-label`, `aria-labelledby` or `title` attribute\nhttps://svelte.dev/e/a11y_consider_explicit_label"
+1772911586672 WARNING "src\\routes\\intake\\+page.svelte" 363:6 "Buttons and links should either contain text or have an `aria-label`, `aria-labelledby` or `title` attribute\nhttps://svelte.dev/e/a11y_consider_explicit_label"
+1772911586672 COMPLETED 411 FILES 1 ERRORS 2 WARNINGS 2 FILES_WITH_PROBLEMS

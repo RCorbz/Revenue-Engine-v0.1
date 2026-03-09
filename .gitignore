@@ -23,3 +23,9 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 # Playwright
 test-results
+
+# GCP Credentials (OBT-11 Security Guardrail)
+gcp-key.json
+*.json.key
+secrets/
+.google/

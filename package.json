@@ -10,10 +10,11 @@
 		"start": "node build/index.js"
 	},
 	"dependencies": {
-		"@google-cloud/documentai": "latest",
+		"@google-cloud/documentai": "^9.5.0",
 		"@google-cloud/vertexai": "latest",
 		"crypto-js": "latest",
 		"dotenv": "latest",
+		"html5-qrcode": "^2.3.8",
 		"pdf-lib": "latest",
 		"pg": "latest",
 		"square": "latest",

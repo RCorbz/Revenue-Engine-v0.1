@@ -6,7 +6,8 @@ const config = {
 	preprocess: vitePreprocess(),
 	kit: {
 		adapter: adapter({
-			precompress: true // OBT-6: Essential for < 100ms latency
+			precompress: true, // OBT-6: Essential for < 100ms latency
+            bodySizeLimit: 1024 * 1024 * 10 // 10MB to support high-res license photos
 		}),
 		alias: {
 			$lib: './src/lib'
