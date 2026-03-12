@@ -7,7 +7,8 @@
 		"dev": "vite dev",
 		"build": "vite build",
 		"preview": "vite preview",
-		"start": "node build/index.js"
+		"start": "node build/index.js",
+		"test:sanity": "npx svelte-check --threshold error && npm run build"
 	},
 	"dependencies": {
 		"@google-cloud/documentai": "^9.5.0",

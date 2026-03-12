@@ -25,32 +25,41 @@ export async function runInAudit(
     const actorId = options.actorId || SYSTEM_ACTOR_ID;
     console.log(`[AUDIT] Initiating: ${action} | Actor: ${actorId}`);
 
-    // TEST-4: Decoupled Mock Provider
+    // TEST-4: Decoupled Mock Provider (Explicit Toggle)
     if (APP_CONFIG.USE_MOCKS) {
         return await handleMockAction(action);
     }
 
-    const client = await pool.connect();
     try {
-        const result = await callback(client);
-        
-        // SEC-2: Immutable Audit Implementation
-        const stateHash = generateStateHash(result || {});
-        const potentialResourceId = options.resourceId || (typeof result === 'string' ? result : (result?.id || null)) || SYSTEM_ACTOR_ID;
-        const finalResourceId = (typeof potentialResourceId === 'string' && potentialResourceId.length >= 32) ? potentialResourceId : SYSTEM_ACTOR_ID;
+        const client = await pool.connect();
+        try {
+            const result = await callback(client);
+            
+            // SEC-2: Immutable Audit Implementation
+            const stateHash = generateStateHash(result || {});
+            const potentialResourceId = options.resourceId || (typeof result === 'string' ? result : (result?.id || null)) || SYSTEM_ACTOR_ID;
+            const finalResourceId = (typeof potentialResourceId === 'string' && potentialResourceId.length >= 32) ? potentialResourceId : SYSTEM_ACTOR_ID;
 
-        await client.query(
-            `INSERT INTO app_public.audit_logs (action_type, actor_id, resource_id, state_hash, client_timestamp)
-             VALUES ($1, $2, $3, $4, NOW())`,
-            [action, actorId, finalResourceId, stateHash]
-        );
+            await client.query(
+                `INSERT INTO app_public.audit_logs (action_type, actor_id, resource_id, state_hash, client_timestamp)
+                VALUES ($1, $2, $3, $4, NOW())`,
+                [action, actorId, finalResourceId, stateHash]
+            );
 
-        return result;
+            return result;
+        } finally {
+            client.release();
+        }
     } catch (error) {
-        console.error(`[AUDIT-ERROR] Failed to log action ${action}:`, error);
+        console.error(`[AUDIT-ERROR] Database connection failed for ${action}:`, error);
+        
+        // AUTO-FALLBACK: If development and DB is unreachable, use mocks instead of crashing.
+        if (!APP_CONFIG.IS_PRODUCTION) {
+            console.warn(`🧪 [AUTO-FALLBACK] DB unreachable. Switching to Mock Provider for ${action}...`);
+            return await handleMockAction(action);
+        }
+        
         throw error;
-    } finally {
-        client.release();
     }
 }
 

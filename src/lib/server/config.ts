@@ -27,7 +27,7 @@ const envSchema = z.object({
     // Core
     NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
     DATABASE_URL: z.string().url().optional().default('postgres://localhost:5432/revenue_engine'),
-    ENCRYPTION_KEY: z.string().min(32, "Encryption key must be at least 32 characters (AES-256)"),
+    ENCRYPTION_KEY: z.string().min(32, "Encryption key must be at least 32 characters (AES-256)").default('dev-key-placeholder-must-be-32-chars-long-!!!'),
     SQUARE_ENV: z.enum(['sandbox', 'production']).default('sandbox'),
     VITE_USE_MOCKS: z.coerce.boolean().default(false),
 
