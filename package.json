@@ -20,7 +20,8 @@
 		"pdf-lib": "latest",
 		"pg": "latest",
 		"square": "latest",
-		"svelte-gestures": "latest"
+		"svelte-gestures": "latest",
+		"zod": "^4.3.6"
 	},
 	"devDependencies": {
 		"@sveltejs/adapter-node": "latest",
