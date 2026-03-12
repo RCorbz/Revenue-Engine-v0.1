@@ -28,6 +28,13 @@ To maintain a high-velocity development cycle without hitting context limits:
 ---
 *Configured in mcp_config.json as standard `python -m jcodemunch_mcp.server`.*
 
+## 🚀 COMMIT PROTOCOL
+To avoid "hanging" commits and clarify the IDE's requirement for a commit message:
+1.  **Summarize Results**: At the end of every task, the Assistant MUST provide a concise 1-line summary of changes.
+2.  **Prompt for Approval**: Use `notify_user` to present this summary and ask for an "Accept and Commit" approval.
+3.  **Automated Commit**: Upon user approval, the Assistant should execute `git add .` and `git commit -m "[summary]"` via `run_command` instead of relying on the user to push the IDE button.
+4.  **Push**: Immediately follow with `git push` (or dry-run if preferred) to finalize the change.
+
 ## 🚀 BOOT PROTOCOL
 - **Immediate Action:** Upon project initialization or at the start of any new session, you MUST execute the `/index` workflow.
 - **Goal:** Update the ToolHive `context_map.xml` and refresh symbol maps before any code analysis begins.
