@@ -43,13 +43,13 @@ class AIService {
                  });
             }
 
-            const model = this.genAI.getGenerativeModel({ model: targetModelId });
-            const result = await model.generateContent({
+            const result = await this.genAI.models.generateContent({
+                model: targetModelId,
                 contents: [{ role: 'user', parts }],
-                generationConfig: {
-                    responseMimeType: 'application/json'
-                },
-                safetySettings: this.safetySettings
+                config: {
+                    responseMimeType: 'application/json',
+                    safetySettings: this.safetySettings
+                }
             });
 
             const text = result.response?.text() || '{}';
@@ -96,7 +96,6 @@ class AIService {
      */
     async getStrategyBriefing(metrics: { aov: number; target: number; gap: number }) {
         try {
-            const model = this.genAI.getGenerativeModel({ model: GEMINI_CONFIG.MODELS.PRO });
             const prompt = `
                 As a Senior Revenue Architect, analyze these metrics:
                 - Current AOV: $${metrics.aov}
@@ -107,7 +106,10 @@ class AIService {
                 Return ONLY the 1-sentence string.
             `;
 
-            const result = await model.generateContent(prompt);
+            const result = await this.genAI.models.generateContent({
+                model: GEMINI_CONFIG.MODELS.PRO,
+                contents: [{ role: 'user', parts: [{ text: prompt }] }]
+            });
             return result.response?.text().trim() || "Analyze surcharge logic to bridge the revenue gap.";
         } catch (error) {
             console.error('❌ [AIService] Briefing Error:', error);
@@ -123,13 +125,15 @@ class AIService {
      */
     async generateRetentionSMS(driverName: string, daysInactive: number) {
         try {
-            const model = this.genAI.getGenerativeModel({ model: GEMINI_CONFIG.MODELS.LITE });
             const prompt = `
                 Draft a professional, friendly SMS to re-engage a driver named ${driverName} who has been inactive for ${daysInactive} days. 
                 Focus on high-revenue regional opportunities. Keep it under 160 characters.
             `;
 
-            const result = await model.generateContent(prompt);
+            const result = await this.genAI.models.generateContent({
+                model: GEMINI_CONFIG.MODELS.LITE,
+                contents: [{ role: 'user', parts: [{ text: prompt }] }]
+            });
             return result.response?.text().trim() || `Hi ${driverName}, we've missed you! High-revenue routes are available in your area. Log in to see your strategy briefing.`;
         } catch (error) {
             console.error('❌ [AIService] SMS Gen Error:', error);
