@@ -10,6 +10,7 @@
     
     // Internal state for corrections
     $: localData = { ...data };
+    $: if (data.comparison) console.log('[ScanReview] Cross-Verification:', data.comparison);
 
     function confirm() {
         dispatch('verified', localData);
@@ -36,30 +37,6 @@
             {/if}
         </div>
     </div>
-
-    {#if data.comparison}
-        <div class="bg-slate-950/50 rounded-2xl p-4 border {data.comparison.isMatch ? 'border-green-500/20' : 'border-red-500/20'} space-y-3">
-            <div class="flex items-center justify-between">
-                <span class="text-[10px] text-slate-500 uppercase font-black">Cross-Verification</span>
-                <span class="text-[10px] font-bold {data.comparison.isMatch ? 'text-green-400' : 'text-red-400'}">
-                    {Math.round(data.comparison.confidence * 100)}% Match
-                </span>
-            </div>
-            
-            {#if !data.comparison.isMatch}
-                <div class="flex flex-col gap-1">
-                    <p class="text-[10px] text-red-400/80 font-bold uppercase italic">Mismatch detected in:</p>
-                    <div class="flex flex-wrap gap-2">
-                        {#each data.comparison.mismatchFields as field}
-                            <span class="text-[9px] bg-red-500/10 text-red-400 px-2 py-0.5 rounded border border-red-500/20 font-mono">{field}</span>
-                        {/each}
-                    </div>
-                </div>
-            {:else}
-                <p class="text-[10px] text-green-400/60 font-medium">Front (OCR) and Back (Barcode) data verified successfully.</p>
-            {/if}
-        </div>
-    {/if}
 
     <div class="grid grid-cols-1 gap-4">
         <div class="bg-slate-950/50 rounded-2xl p-4 border border-slate-800/50 space-y-4">
