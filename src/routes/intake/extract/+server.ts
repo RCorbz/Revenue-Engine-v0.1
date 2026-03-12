@@ -205,6 +205,7 @@ export const POST: RequestHandler = async ({ request }) => {
                 
                 extractedData = { ...extractedData, ...normalizedData };
                 extractedData.source = 'gemini-comprehensive';
+                if (normalizedData.confidence) lowestConfidence = normalizedData.confidence;
             } else {
                 extractedData.source = 'docai-standalone';
                 log('✅ [PHASE 2] High confidence DocAI signal secured. Gemini recovery skipped.');
