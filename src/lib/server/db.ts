@@ -1,11 +1,13 @@
 import pg from 'pg';
+import { APP_CONFIG } from './config';
+
 const { Pool } = pg;
 
-const isLocal = process.env.NODE_ENV !== 'production';
-const hasDb = !!process.env.DATABASE_URL;
+const isLocal = !APP_CONFIG.IS_PRODUCTION;
+const hasDb = !!APP_CONFIG.DATABASE_URL && APP_CONFIG.DATABASE_URL !== 'postgres://localhost:5432/revenue_engine';
 
 export const pool = new Pool({
-    connectionString: process.env.DATABASE_URL || 'postgres://localhost:5432/revenue_engine',
+    connectionString: APP_CONFIG.DATABASE_URL,
     ssl: isLocal ? false : { rejectUnauthorized: false }
 });
 

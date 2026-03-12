@@ -1,6 +1,6 @@
 import { PDFDocument } from 'pdf-lib';
 import { readFileSync } from 'node:fs';
-import { env } from '$env/dynamic/private';
+import { APP_CONFIG } from './config';
 import { decryptSensitiveData } from '$lib/utils/security';
 import path from 'node:path';
 

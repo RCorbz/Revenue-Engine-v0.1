@@ -1,6 +1,6 @@
 import { runInAudit } from './db';
 import { encryptSensitiveData } from '$lib/utils/security';
-import { env } from '$env/dynamic/private';
+import { APP_CONFIG } from './config';
 
 /**
  * PHI Vault interaction layer.
@@ -13,14 +13,14 @@ export async function createDriverRecord(payload: {
     licenseNumber: string;
     userId: string;
 }) {
-    if (!env.ENCRYPTION_KEY) {
+    if (!APP_CONFIG.ENCRYPTION_KEY) {
         throw new Error('System Misconfiguration: Missing ENCRYPTION_KEY');
     }
 
     // Encrypt sensitive fields before database insertion
-    const encryptedSsn = encryptSensitiveData(payload.ssn, env.ENCRYPTION_KEY);
-    const encryptedDob = encryptSensitiveData(payload.dob, env.ENCRYPTION_KEY);
-    const encryptedLicense = encryptSensitiveData(payload.licenseNumber, env.ENCRYPTION_KEY);
+    const encryptedSsn = encryptSensitiveData(payload.ssn, APP_CONFIG.ENCRYPTION_KEY);
+    const encryptedDob = encryptSensitiveData(payload.dob, APP_CONFIG.ENCRYPTION_KEY);
+    const encryptedLicense = encryptSensitiveData(payload.licenseNumber, APP_CONFIG.ENCRYPTION_KEY);
 
     const result = await runInAudit('CREATE_PHI_RECORD', async (db) => {
         const query = `

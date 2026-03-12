@@ -1,0 +1,19 @@
+{
+  "firstName": "JANE",
+  "lastName": "SAMPLE",
+  "idNumber": "12345678",
+  "dob": "01/01/1990",
+  "address": "123 SAMPLE STREET\nSAMPLE CITY, TX 12345",
+  "issueDate": "01/04/2025",
+  "expirationDate": "01/01/2028",
+  "physical": {
+    "sex": "F",
+    "height": "5'-10\"",
+    "eyes": "BRO"
+  },
+  "licenseDetails": {
+    "class": null,
+    "restrictions": null
+  },
+  "documentDiscriminator": "12345678901234567890"
+}

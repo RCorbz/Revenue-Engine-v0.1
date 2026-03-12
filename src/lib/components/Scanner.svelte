@@ -1,6 +1,7 @@
 <script lang="ts">
     import { onMount, createEventDispatcher, onDestroy } from 'svelte';
     import { parseAAMVA } from '$lib/utils/aamva';
+    import { compareIdentity } from '$lib/utils/compare';
     import { fade, scale } from 'svelte/transition';
     
     const dispatch = createEventDispatcher();
@@ -27,15 +28,27 @@
                 console.log('✅ [EDGE ENGINE] PDF417 Detected & Decoded.');
                 const parsed = parseAAMVA(e.data.text);
                 if (parsed.idNumber) {
-                    // Correct potential data property naming mismatches (server vs local)
-                    const data = {
-                        firstName: parsed.firstName || extractedData.firstName,
-                        lastName: parsed.lastName || extractedData.lastName,
-                        idNumber: parsed.idNumber || extractedData.idNumber,
-                        dob: parsed.dob || extractedData.dob,
-                        source: 'barcode'
+                    const comparison = compareIdentity(extractedData, parsed);
+                    
+                    // SMART MERGE: PRIORITIZE FRONT-SIDE DATA (Gemini 3.1 Neural Pass)
+                    const mergedData = { ...extractedData };
+                    for (const key in parsed) {
+                        const newVal = parsed[key];
+                        // Only fill in if front-side is missing AND back-side has valid data
+                        const frontPathVal = mergedData[key];
+                        const isFrontEmpty = !frontPathVal || frontPathVal === '' || frontPathVal === 'null' || frontPathVal === 'MISSING';
+                        
+                        if (isFrontEmpty && newVal && newVal !== '' && newVal !== 'null' && newVal !== 'MISSING') {
+                            mergedData[key] = newVal;
+                        }
+                    }
+
+                    const finalData = { 
+                        ...mergedData, 
+                        comparison,
+                        source: 'edge-barcode' 
                     };
-                    handleResult(data, 'edge');
+                    handleResult(finalData, 'edge');
                 }
             }
         };
@@ -97,11 +110,11 @@
         console.log('🚀 [PHASE 2: CLOUD UPLOAD] Sending Front Frame to DocAI Neural Pass...');
         
         try {
-            const res = await fetch('/api/intake/extract', {
+            const res = await fetch('/intake/extract', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
-                    imageBase64: base64.split(',')[1],
+                    image: base64,
                     side: 'front' 
                 })
             });
@@ -114,8 +127,8 @@
             const result = await res.json();
             
             if (result.success && result.data) {
-                extractedData = result.data;
-                console.log(`🧠 [PHASE 3: FRONT GROUNDING] Result Received (DocAI Entities: ${result.docAiEntityCount || 0}):`, extractedData);
+                extractedData = { ...result.data }; // Clone to ensure persistence
+                console.log(`🧠 [PHASE 3: FRONT GROUNDING] Saved Persistent Front Data:`, extractedData);
                 
                 // AUTO-ADVANCE TO BACK SIDE
                 phase = 'back';
@@ -192,11 +205,11 @@
         console.log(`📸 [PHASE 1: SIZE] Backside Frame: ${imgSizeKB}KB`);
         console.log('🚀 [PHASE 2: CLOUD UPLOAD] Sending Backside Frame to Backup Cloud AI...');
         try {
-            const res = await fetch('/api/intake/extract', {
+            const res = await fetch('/intake/extract', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
-                    imageBase64: base64.split(',')[1],
+                    image: base64,
                     side: 'back'
                 })
             });
@@ -206,13 +219,36 @@
                 throw new Error(errData.error || 'Server Error');
             }
 
-            const result = await res.json();
-            if (result.success && result.data) {
-                // Merge data (barcode/back data takes priority for certain fields)
-                console.log(`🧠 [PHASE 3: BACK GROUNDING] Result Received (DocAI Entities: ${result.docAiEntityCount || 0}):`, result.data);
-                const finalData = { ...extractedData, ...result.data };
-                handleResult(finalData, 'cloud');
-            } else {
+                const result = await res.json();
+                if (result.success && result.data) {
+                    // Perform Cross-Verification: Front (extractedData) vs Back (result.data)
+                    console.log('⚖️ [VERIFICATION] Comparing Front Data:', extractedData);
+                    console.log('⚖️ [VERIFICATION] Against Back Data:', result.data);
+                    
+                    const comparison = compareIdentity(extractedData, result.data);
+                    
+                    // SMART MERGE: PRIORITIZE FRONT-SIDE DATA (Gemini 3.1 Neural Pass)
+                    const mergedData = { ...extractedData };
+                    for (const key in result.data) {
+                        const newVal = result.data[key];
+                        // Only fill in if front-side is missing AND back-side has valid data
+                        const frontPathVal = mergedData[key];
+                        const isFrontEmpty = !frontPathVal || frontPathVal === '' || frontPathVal === 'null' || frontPathVal === 'MISSING';
+                        
+                        if (isFrontEmpty && newVal && newVal !== '' && newVal !== 'null' && newVal !== 'MISSING') {
+                            mergedData[key] = newVal;
+                        }
+                    }
+
+                    const finalData = { 
+                        ...mergedData, 
+                        comparison,
+                        source: result.source || 'cloud'
+                    };
+                    
+                    console.log('🏁 [INTAKE COMPLETE] Dispatching Merged Identity:', finalData);
+                    handleResult(finalData, 'cloud');
+                } else {
                 status = "BACK SCAN FAILED. TRY AGAIN.";
                 console.warn('⚠️ [INTAKE] Back capture empty.');
                 isFailover = false;

@@ -4,7 +4,7 @@
     import { fade, slide } from 'svelte/transition';
     import Scanner from '$lib/components/Scanner.svelte';
     import ScanReview from '$lib/components/ScanReview.svelte';
-    import { parseAAMVA } from '$lib/utils/aamva';
+    import { parseAAMVA, type IdentityData } from '$lib/utils/aamva';
 	import type { ActionData } from './$types';
 
 	export let form: ActionData;
@@ -48,14 +48,7 @@
 	let scanTimeout: NodeJS.Timeout | null = null;
 	let scanFailed = false;
 	let fieldConfidences: Record<string, number> = {};
-	let scannerResult: {
-		driverName: string;
-		ssn: string;
-		dob: string;
-		licenseNumber: string;
-		source?: string;
-		verificationStatus?: string;
-	} | null = null;
+	let scannerResult: IdentityData | null = null;
 
 	let verifySwipeProgress = 0;
 	let autoSnapTimeout: any = null;
@@ -72,10 +65,15 @@
 			scanPhase = 'manual';
 			stopCamera();
 			scannerResult = {
+				firstName: '',
+				lastName: '',
 				driverName: '',
-				ssn: '',
+				idNumber: '',
 				dob: '',
-				licenseNumber: ''
+				licenseNumber: '',
+				expirationDate: '',
+				isExpired: false,
+				source: 'manual'
 			};
 		}
 	}
@@ -248,14 +246,13 @@
 				// Merge with existing result if present (Front-First Priority)
 				const newData = result.data || {};
 				scannerResult = {
+					firstName: newData.firstName || '',
+					lastName: newData.lastName || '',
 					driverName:
 						newData.driverName && !newData.driverName.includes('MISSING')
 							? newData.driverName
 							: scannerResult?.driverName || 'RESCAN REQUIRED',
-					ssn:
-						newData.ssn && !newData.ssn.includes('000-00-0000')
-							? newData.ssn
-							: scannerResult?.ssn || '000-00-0000',
+					idNumber: newData.idNumber || newData.licenseNumber || '',
 					dob:
 						newData.dob && !newData.dob.includes('1901-01-01')
 							? newData.dob
@@ -264,7 +261,9 @@
 						newData.licenseNumber && !newData.licenseNumber.includes('MISSING')
 							? newData.licenseNumber
 							: scannerResult?.licenseNumber || 'PENDING',
-					source: result.source,
+					expirationDate: newData.expirationDate || '',
+					isExpired: newData.isExpired || false,
+					source: result.source || 'cloud',
 					verificationStatus: result.data?.verificationStatus || scannerResult?.verificationStatus
 				};
 
@@ -313,6 +312,11 @@
 
 	function handleScanReview(event: CustomEvent) {
 		scannerResult = { ...scannerResult, ...event.detail };
+		// Map back to legacy fields for other parts of the app if needed
+		if (scannerResult) {
+			scannerResult.driverName = `${scannerResult.firstName || ''} ${scannerResult.lastName || ''}`.trim();
+			scannerResult.licenseNumber = scannerResult.idNumber;
+		}
 		scanPhase = 'done';
 	}
 
@@ -321,10 +325,15 @@
 		scanFailed = false;
 		scanPhase = 'done';
 		scannerResult = {
+			firstName: 'JOHN',
+			lastName: 'PUBLIC',
 			driverName: 'JOHN Q PUBLIC',
-			ssn: '000-00-0000',
+			idNumber: 'DL-999888',
 			dob: '1980-01-01',
-			licenseNumber: 'DL-999888'
+			licenseNumber: 'DL-999888',
+			expirationDate: '2030-01-01',
+			isExpired: false,
+			source: 'simulation'
 		};
 	}
 
@@ -454,7 +463,15 @@
 				</p>
 
 				<div class="flex-grow flex flex-col justify-center min-h-[350px]">
-					{#if scanPhase === 'done' && scannerResult}
+					{#if scanPhase === 'review' && scannerResult}
+						<div in:fade={{ duration: 300 }}>
+							<ScanReview 
+								data={scannerResult} 
+								on:verified={handleScanReview} 
+								on:rescan={retakePhoto} 
+							/>
+						</div>
+					{:else if scanPhase === 'done' && scannerResult}
 						<div class="flex flex-col items-center justify-center space-y-4 mb-6" in:fade>
 							<div class="text-revenue text-4xl mb-2">✓</div>
 							<p class="text-xs text-revenue font-mono font-bold tracking-widest uppercase">ID Authenticated</p>
@@ -464,7 +481,7 @@
 							<div class="flex justify-between items-center mb-1 border-b border-slate-800 pb-1">
 								<p class="text-[10px] text-slate-500 font-mono">EXTRACTED IDENTITY MATCH</p>
 								<span
-									class="text-[8px] px-1.5 py-0.5 rounded {scannerResult.source === 'edge'
+									class="text-[8px] px-1.5 py-0.5 rounded {scannerResult.source === 'edge' || scannerResult.source === 'edge-barcode'
 										? 'bg-green-500/20 text-green-400 border border-green-500/30'
 										: 'bg-blue-500/20 text-blue-400 border border-blue-500/30'} font-bold tracking-tighter uppercase"
 								>
@@ -478,27 +495,45 @@
 								<div>
 									<span class="text-slate-500">Status:</span>
 									<span
-										class={scannerResult.verificationStatus?.includes('Verified')
+										class={scannerResult.verificationStatus?.includes('Verified') || (scannerResult.comparison?.isMatch)
 											? 'text-revenue'
 											: 'text-amber-500'}
 									>
-										{scannerResult.verificationStatus || 'N/A'}
+										{scannerResult.verificationStatus || (scannerResult.comparison?.isMatch ? 'Verified' : 'Manual Review')}
 									</span>
 								</div>
 							</div>
 						</div>
+					{:else if scanPhase === 'manual' && scannerResult}
+						<div in:fade={{ duration: 300 }} class="space-y-4">
+							<h3 class="text-sm font-bold text-center">Manual Identity Entry</h3>
+							<div class="space-y-3">
+								<div class="space-y-1">
+									<label for="m-name" class="text-[10px] text-slate-500 uppercase font-black">Full Name</label>
+									<input id="m-name" type="text" bind:value={scannerResult.driverName} class="w-full" />
+								</div>
+								<div class="grid grid-cols-2 gap-3">
+									<div class="space-y-1">
+										<label for="m-dl" class="text-[10px] text-slate-500 uppercase font-black">DL Number</label>
+										<input id="m-dl" type="text" bind:value={scannerResult.licenseNumber} class="w-full" />
+									</div>
+									<div class="space-y-1">
+										<label for="m-dob" class="text-[10px] text-slate-500 uppercase font-black">DOB</label>
+										<input id="m-dob" type="text" bind:value={scannerResult.dob} placeholder="YYYY-MM-DD" class="w-full" />
+									</div>
+								</div>
+								<button 
+									class="w-full py-4 bg-slate-800 text-white font-black rounded-2xl mt-4"
+									on:click={() => scanPhase = 'done'}
+								>
+									CONTINUE
+								</button>
+							</div>
+						</div>
 					{:else}
 						<Scanner on:complete={(e) => {
-							const data = e.detail;
-							scannerResult = {
-								driverName: `${data.firstName} ${data.lastName}`,
-								ssn: data.idNumber,
-								dob: data.dob,
-								licenseNumber: data.idNumber,
-								source: data.source,
-								verificationStatus: (data.confidence || 0) > 0.9 ? 'Verified' : 'Manual Review'
-							};
-							scanPhase = 'done';
+							scannerResult = e.detail;
+							scanPhase = 'review';
 						}} />
 					{/if}
 				</div>
@@ -513,6 +548,18 @@
 									class="w-4 h-4 rounded-full border-2 border-revenue border-t-transparent animate-spin"
 								></div>
 								EXTRACTING...
+							</div>
+						{:else if scanPhase === 'review'}
+							<div
+								class="w-full h-14 text-center p-[14px] text-blue-400 font-bold border-2 border-dashed border-blue-500/50 bg-blue-500/10 rounded-xl text-sm tracking-widest uppercase flex items-center justify-center"
+							>
+								REVIEWING DETAILS
+							</div>
+						{:else if scanPhase === 'manual'}
+							<div
+								class="w-full h-14 text-center p-[14px] text-amber-500 font-bold border-2 border-dashed border-amber-500/50 bg-amber-500/10 rounded-xl text-sm tracking-widest uppercase flex items-center justify-center"
+							>
+								MANUAL CORRECTION
 							</div>
 						{:else}
 							<div

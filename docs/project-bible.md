@@ -19,6 +19,13 @@ This web application is architected for a GCP-Native, Serverless "Edge-First" de
     *   *Gemini 3.1 Flash-Lite:* Low-cost competitor scraping and automated SMS retention generation.
 *   **Payments:** Unified Square API. The system uses the Terminal API for stationary locations and Web Payments SDK (Tap-to-Pay) for mobile field operations.
 
+### 1.5 Consolidation Guardrails (Anti-Fragmentation)
+To prevent "Ghost Logic" and fractured technical debt, the following guardrails are MANDATORY:
+*   **Single-Route Principle:** All identity extraction must route through `/intake/extract`. Creating shadow endpoints (like `/api/intake/...`) is prohibited.
+*   **Payload Standardization:** All image intake endpoints must accept a JSON body with the `image` key containing the Base64 string. Use of `imageBase64` or `snap` is deprecated.
+*   **Grounded Variable Naming:** Always use `GCP_PROJECT_ID` as defined in Section 6.2. Never alias to `PROJECT_ID` within individual server files to maintain global searchability.
+*   **Absolute Auth Pathing:** The `DocumentProcessorServiceClient` must be initialized with an explicit `keyFilename` pointing to the `GOOGLE_APPLICATION_CREDENTIALS` path to ensure reliability across dev/prod environments.
+
 ## 2. ToolHive & Token Optimization Architecture (The Munch Strategy)
 
 To manage context limits and enforce enterprise-grade builds, you must strictly follow the "Munch" Strategy context architecture using `jcodemunch-mcp`.
@@ -49,14 +56,15 @@ To manage context limits and enforce enterprise-grade builds, you must strictly 
         2. **Cloud Fallback (>8s):** If edge decoding fails, the system automatically captures a high-res full frame and routes it to the **Google Document AI Identity Processor**.
 *   **Phase 2: Neural Grounding (Backend):**
     *   **DocAI Integration:** Extracts structural entities (Name, DOB, ID Number) and analyzes fraud signals (OBT-15).
-    *   **Gemini 3.1 Flash (Adaptive Thinking):** Performs "Fuzzy Mapping" and semantic normalization on the DocAI result. It cleans addresses and standardizes formats (e.g., `YYYY-MM-DD`).
+    *   **Gemini 3.1 Neural Pass (Adaptive Thinking):** Performs "Phase 3 Normalization" on both front and back images. It extracts 15+ data points including physical traits (height, eyes, sex), license details (class, restrictions), and security metadata (Document Discriminator).
+    *   **Front-First Data Priority:** To maximize reliability, the system treats data from the front-side neural pass as the primary source of truth. Barcode data is used strictly for **gap-filling** (e.g., if OCR missed a field that the barcode captured), never for overwriting validated front-side identifiers.
 *   **Strategic Mandate (Edge Excellence):** The Local Edge Decoder must meet or exceed the performance benchmarks of the **Scanbot SDK**. This is critical for:
     *   **UI/UX Friction Reduction:** Eliminating the "Network Wait" for the 80% of users with clear documents.
     *   **Cost Optimization:** Reducing recurring Vertex AI/DocAI API overhead by handling valid high-density PDF417 barcodes locally.
     *   **Commercial Parity:** Implementing Scanbot-level "Sweet Spot" bounding and high-frequency decoding inside a non-blocking Web Worker.
     *   **Confidence Routing:** 
         *   **Score > 0.9:** Auto-populate and proceed.
-        *   **Score 0.7 - 0.9:** Highlights uncertain fields in `ScanReview.svelte` for one-tap correction.
+        *   **Score 0.7 - 0.9:** Highlights uncertain fields in the expanded `ScanReview.svelte` (15+ fields) for one-tap correction.
         *   **Score < 0.7:** Mandatory re-scan.
     *   **Interactive Confirmation:** Uses a dual-action slider: Swipe Right (Verify/Confirm) or Swipe Left (Manual Failover).
 
@@ -181,15 +189,16 @@ export const maskPII = (name: string) => {
 | Test ID | Scenario | Status | Implementation Reference |
 | :--- | :--- | :--- | :--- |
 | **TC-01** | Ideal Edge Scan (Decodes < 2s) | 🟢 DONE | `barcode.worker.ts`, `Scanner.svelte` |
-| **TC-02** | Live Guidance UI (4s Prompt) | 🟢 DONE | `Scanner.svelte:L182` ("MOVE BARCODE CLOSER") |
-| **TC-03** | Cloud Fallback Trigger (8s) | 🟢 DONE | `Scanner.svelte:L165` (`elapsed > 8000`) |
-| **TC-04** | AI Normalization (Post-OCR) | 🟢 DONE | `gemini.ts` (Adaptive Pass) |
-| **TC-05** | Image Pre-processing | 🟢 DONE | `Scanner.svelte:L189` (`preprocessImage`) |
+| **TC-02** | Live Guidance UI (4s Prompt) | 🟢 DONE | `Scanner.svelte` ("MOVE BARCODE CLOSER") |
+| **TC-03** | Cloud Fallback Trigger (8s) | 🟢 DONE | `Scanner.svelte` (`elapsed > 8000`) |
+| **TC-04** | AI Normalization (Post-OCR) | 🟢 DONE | `gemini.ts` (Phase 3 Neural Pass) |
+| **TC-05** | Image Pre-processing | 🟢 DONE | `Scanner.svelte` (High-Res Snapshot) |
 | **TC-06** | AAMVA Data Integrity | 🟢 DONE | `aamva.ts` (Parsed Regex mapping) |
+| **TC-07** | Front-First Strategy | 🟢 DONE | `Scanner.svelte` (Smart Merge Phase 3) |
 
 ### Active OBT Progress Tracking
 | OBT-ID | Description | Status | Verification Path |
 | :--- | :--- | :--- | :--- |
-| **OBT-1** | Scan-to-signature < 120s | 🟡 60% | Waterfall active; Cloud grounding validated. |
+| **OBT-1** | Scan-to-signature < 120s | 🟢 95% | Waterfall active; Cloud grounding validated; Review screen optimized. |
 | **OBT-15** | Compliance Check (Expired IDs) | 🟢 100% | `aamva.ts` + DocAI Fraud Signal map. |
-| **OBT-20** | Correction Efficiency | 🟡 80% | `ScanReview.svelte` integrated with `fieldConfidences`. |
+| **OBT-20** | Correction Efficiency | 🟢 100% | `ScanReview.svelte` (15+ fields) with reactive binding. |

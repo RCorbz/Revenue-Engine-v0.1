@@ -1,28 +1,21 @@
 import { GoogleGenAI } from '@google/genai';
-import { GCP_PROJECT_ID, GEMINI_FLASH_MODEL, GCP_LOCATION, GEMINI_FLASH_LITE_MODEL, GOOGLE_APPLICATION_CREDENTIALS } from '$env/static/private';
+import { GCP_CONFIG, GEMINI_CONFIG, validateConfig } from './config';
 
-// 🚀 REVENUE ENGINE 2026 STACK
-// Standardizing on @google/genai (v1.44.0+) for Enterprise Vertex AI
-// 🚨 NOTE: Numerical Project ID (351328298118) is the most stable for preview resolution.
+// 🚀 REVENUE ENGINE 2026 STACK: Standardized Foundation
+// Using Consolidated Configuration (config.ts) to prevent logic fractures.
 
-// 🛡️ CRITICAL: Explicitly set ADC for local development path resolution
-if (GOOGLE_APPLICATION_CREDENTIALS) {
-    process.env.GOOGLE_APPLICATION_CREDENTIALS = GOOGLE_APPLICATION_CREDENTIALS;
-}
+validateConfig();
 
-const gcp_location = (GCP_LOCATION || 'us-central1').replace('cenntral1', 'central1');
-
-console.log(`📡 [AI CLIENT] Initializing Foundation: Project=${GCP_PROJECT_ID} | Region=${gcp_location}`);
+console.log(`📡 [AI CLIENT] Initializing Foundation: Project=${GCP_CONFIG.PROJECT_ID} | Location=${GCP_CONFIG.LOCATION}`);
 
 /**
- * Enterprise AI Client
- * Targets v1beta1 endpoints for Gemini 3.1 Adaptive Thinking connectivity.
+ * Enterprise AI Client (Unified SDK)
+ * Using Vertex AI mode with centralized location routing.
  */
-const client = new GoogleGenAI({
-    project: GCP_PROJECT_ID,
-    location: gcp_location,
-    vertexai: true,
-    apiVersion: 'v1beta1'
+const genAI = new GoogleGenAI({
+    project: GCP_CONFIG.PROJECT_ID,
+    location: GCP_CONFIG.LOCATION,
+    vertexai: true
 } as any);
 
 const SAFETY_SETTINGS = [
@@ -32,108 +25,103 @@ const SAFETY_SETTINGS = [
     { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' }
 ];
 
-// 🚀 REVENUE ENGINE 2026 STACK: Robust Model Mapping
-const PRIMARY_MODEL = GEMINI_FLASH_MODEL || 'gemini-1.5-flash-002';
-const BACKUP_MODEL = GEMINI_FLASH_LITE_MODEL || 'gemini-1.5-flash-8b';
-const STABLE_MODEL = 'gemini-1.5-flash';
-
-const GARDEN_URL = 'https://console.cloud.google.com/vertex-ai/model-garden';
-
 /**
- * Normalizes identity extraction data using the Adaptive Thinking engine.
- * Fallback mechanism for low-confidence DocAI triage.
+ * Normalizes identity extraction data using the Gemini 3.1 series.
+ * Tier-2 Semantic Recovery Phase.
  */
 export async function normalizeIdentityData(rawExtracted: any, imageBase64?: string, sideHint?: string) {
     try {
         const sideStr = sideHint ? sideHint.toUpperCase() : 'FRONT';
-        console.log(`🧠 [NORMALIZATION] Starting Pass for Side: ${sideStr}`);
+        console.log(`🧠 [NORMALIZATION] Starting 3.1 Pass for ${sideStr} via ${GCP_CONFIG.LOCATION}...`);
 
-        const prompt = `
+        const systemPrompt = `
             SYSTEM ROLE: Lead Architect & AI Vision Engine (BMADv6).
-            TASK: Read all text and numbers on this identity document (${sideStr}).
+            TASK: Read and extract EVERY single data point visible on this identity document (${sideStr}).
             
             DIRECTIONS:
-            1. Transcribe the FIRST NAME and LAST NAME.
-            2. Transcribe the ID NUMBER (e.g. S8901234).
-            3. Transcribe the DATE OF BIRTH as YYYY-MM-DD.
-            4. Output valid JSON only.
+            1. Transcribe ALL fields: Names, ID Number, Address (Full), Dates (DOB, Issue, Expiration), Sex, Height, Eyes, Class, Restrictions, and Endorsements.
+            2. Extract any "Document Discriminator" or DD numbers.
+            3. Output ONLY valid JSON.
             
             OCR SEED: ${JSON.stringify(rawExtracted)}
             
-            OUTPUT FORMAT:
+            REQUIRED JSON SCHEMA:
             {
-              "firstName": "GIVEN",
-              "lastName": "FAMILY",
-              "idNumber": "ID_VAL",
+              "firstName": "string",
+              "lastName": "string",
+              "idNumber": "string",
               "dob": "YYYY-MM-DD",
-              "raw_ai_log": "Internal thought log"
+              "address": "full address string",
+              "issueDate": "YYYY-MM-DD",
+              "expirationDate": "YYYY-MM-DD",
+              "physical": {
+                "sex": "string",
+                "height": "string",
+                "eyes": "string"
+              },
+              "licenseDetails": {
+                "class": "string",
+                "restrictions": "string",
+                "endorsements": "string"
+              },
+              "documentDiscriminator": "string",
+              "extracted_all": {} 
             }
         `;
 
-        const parts: any[] = [{ text: prompt }];
+        const parts: any[] = [{ text: systemPrompt }];
         if (imageBase64) {
-            parts.push({
-                inlineData: { mimeType: 'image/jpeg', data: imageBase64 }
-            });
+             const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
+             parts.push({
+                 inlineData: { mimeType: 'image/jpeg', data: base64Data }
+             });
         }
 
-        let result;
-        let modelUsed = PRIMARY_MODEL;
+        // Selection based on complexity: Pro for recovery, Flash for efficiency
+        const targetModelId = sideStr === 'BACK' ? GEMINI_CONFIG.MODELS.PRO : GEMINI_CONFIG.MODELS.FLASH;
+        
+        console.log(`🚀 [AI CALL] Targeting Model: ${targetModelId}`);
 
-        try {
-            // Attempt 1: Primary
-            result = await client.models.generateContent({
-                model: modelUsed,
-                contents: [{ role: 'user', parts }],
-                config: { safetySettings: SAFETY_SETTINGS as any, responseMimeType: 'application/json' }
-            });
-        } catch (e: any) {
-            console.warn(`⚠️ [AI FALLBACK] Primary model failed: ${e.message}`);
-            if (e.message?.includes('404') || e.message?.includes('not found')) {
-                console.warn(`🔄 [AI FALLBACK] Dropping to Backup (${BACKUP_MODEL})...`);
-                modelUsed = BACKUP_MODEL;
-                try {
-                    result = await client.models.generateContent({
-                        model: modelUsed,
-                        contents: [{ role: 'user', parts }],
-                        config: { safetySettings: SAFETY_SETTINGS as any, responseMimeType: 'application/json' }
-                    });
-                } catch (e2: any) {
-                    console.warn(`🔄 [AI FALLBACK] Backup failed. Using Stable (${STABLE_MODEL})...`);
-                    modelUsed = STABLE_MODEL;
-                    result = await client.models.generateContent({
-                        model: modelUsed,
-                        contents: [{ role: 'user', parts }],
-                        config: { safetySettings: SAFETY_SETTINGS as any, responseMimeType: 'application/json' }
-                    });
-                }
-            } else {
-                throw e;
+        // Unified SDK Call Pattern (Alpha/Beta v1.44+)
+        const result = await genAI.models.generateContent({
+            model: targetModelId,
+            contents: [{ role: 'user', parts }],
+            config: {
+                safetySettings: SAFETY_SETTINGS as any,
+                responseMimeType: 'application/json'
             }
-        }
+        });
 
-        const response = await result.response;
-        const content = response.text() || '{}';
+        // VERIFIED PATH: result.candidates[0].content.parts[0].text
+        const text = result.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+        const parsed = JSON.parse(text);
         
-        const parsed = JSON.parse(content);
-        console.log(`✅ [PHASE 3: RESULT] (${sideStr}) Normalize complete via ${modelUsed}`);
-        
+        console.log(`✅ [PHASE 3: RESULT] (${sideStr}) Comprehensive Normalize complete via ${targetModelId}`);
+
         return {
             data: {
-                firstName: parsed.firstName || rawExtracted.firstName,
-                lastName: parsed.lastName || rawExtracted.lastName,
-                idNumber: parsed.idNumber || rawExtracted.idNumber,
-                dob: parsed.dob || rawExtracted.dob
+                // Backward compatibility mapping
+                firstName: parsed.firstName || rawExtracted.firstName || '',
+                lastName: parsed.lastName || rawExtracted.lastName || '',
+                idNumber: (parsed.idNumber || rawExtracted.idNumber || '').toUpperCase().trim(),
+                dob: parsed.dob || rawExtracted.dob || '',
+                // New comprehensive fields
+                address: parsed.address || '',
+                issueDate: parsed.issueDate || '',
+                expirationDate: parsed.expirationDate || '',
+                physical: parsed.physical || {},
+                licenseDetails: parsed.licenseDetails || {},
+                documentDiscriminator: parsed.documentDiscriminator || '',
+                full_extraction: parsed // Everything the AI extracted
             },
-            raw_log: `(via ${modelUsed}) ${parsed.raw_ai_log || 'Success'}`
+            raw_log: `(via ${targetModelId}) Location: ${GCP_CONFIG.LOCATION}`
         };
 
     } catch (error: any) {
-        let msg = error.message;
-        if (msg.includes('404') || msg.includes('not found')) {
-            msg = `API_NOT_READY: 1. Enable 'Vertex AI API' in GCP Console. 2. Enable models at ${GARDEN_URL}`;
-        }
-        console.error('❌ [AI ERROR] Normalization failed:', msg);
-        return { data: rawExtracted, raw_log: 'ERROR: ' + msg };
+        console.error('❌ [GEMINI 3.1 CRITICAL ERROR]:', error.message);
+        return { 
+            data: rawExtracted, 
+            raw_log: 'ERROR: AI foundation returned 404 or connectivity fault.' 
+        };
     }
 }

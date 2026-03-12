@@ -1,23 +1,15 @@
 <script lang="ts">
     import { createEventDispatcher } from 'svelte';
     import { maskPII } from '$lib/utils/format';
-
-    export let data: {
-        firstName: string;
-        lastName: string;
-        idNumber: string;
-        dob: string;
-        expirationDate?: string;
-        isExpired?: boolean;
-        source: 'barcode' | 'ocr';
-        confidence?: number;
-    };
+    import type { IdentityData } from '$lib/utils/aamva';
+ 
+    export let data: IdentityData;
 
     const dispatch = createEventDispatcher();
     let isEditing = false;
     
     // Internal state for corrections
-    let localData = { ...data };
+    $: localData = { ...data };
 
     function confirm() {
         dispatch('verified', localData);
@@ -33,15 +25,41 @@
         <div class="space-y-1">
             <h2 class="text-xl font-bold tracking-tight">Review Identity</h2>
             <p class="text-[10px] text-slate-500 uppercase font-black tracking-widest">
-                Source: {data.source} {#if data.confidence}({Math.round(data.confidence * 100)}% Match){/if}
+                Source: {data.source}
             </p>
         </div>
-        {#if data.isExpired}
-            <span class="bg-red-500/20 text-red-400 px-3 py-1 rounded-full text-[10px] font-black uppercase">EXPIRED</span>
-        {:else}
-            <span class="bg-green-500/20 text-green-400 px-3 py-1 rounded-full text-[10px] font-black uppercase">VALID</span>
-        {/if}
+        <div class="flex items-center gap-2">
+            {#if data.isExpired}
+                <span class="bg-red-500/20 text-red-400 px-3 py-1 rounded-full text-[10px] font-black uppercase">EXPIRED</span>
+            {:else}
+                <span class="bg-green-500/20 text-green-400 px-3 py-1 rounded-full text-[10px] font-black uppercase">VALID</span>
+            {/if}
+        </div>
     </div>
+
+    {#if data.comparison}
+        <div class="bg-slate-950/50 rounded-2xl p-4 border {data.comparison.isMatch ? 'border-green-500/20' : 'border-red-500/20'} space-y-3">
+            <div class="flex items-center justify-between">
+                <span class="text-[10px] text-slate-500 uppercase font-black">Cross-Verification</span>
+                <span class="text-[10px] font-bold {data.comparison.isMatch ? 'text-green-400' : 'text-red-400'}">
+                    {Math.round(data.comparison.confidence * 100)}% Match
+                </span>
+            </div>
+            
+            {#if !data.comparison.isMatch}
+                <div class="flex flex-col gap-1">
+                    <p class="text-[10px] text-red-400/80 font-bold uppercase italic">Mismatch detected in:</p>
+                    <div class="flex flex-wrap gap-2">
+                        {#each data.comparison.mismatchFields as field}
+                            <span class="text-[9px] bg-red-500/10 text-red-400 px-2 py-0.5 rounded border border-red-500/20 font-mono">{field}</span>
+                        {/each}
+                    </div>
+                </div>
+            {:else}
+                <p class="text-[10px] text-green-400/60 font-medium">Front (OCR) and Back (Barcode) data verified successfully.</p>
+            {/if}
+        </div>
+    {/if}
 
     <div class="grid grid-cols-1 gap-4">
         <div class="bg-slate-950/50 rounded-2xl p-4 border border-slate-800/50 space-y-4">
@@ -65,6 +83,58 @@
                     <label for="dob" class="text-[10px] text-slate-500 uppercase font-black">Date of Birth</label>
                     <input id="dob" type="text" bind:value={localData.dob} class="w-full bg-transparent border-b border-slate-700 focus:border-blue-500 outline-none font-mono text-sm py-1" />
                 </div>
+            </div>
+
+            <div class="space-y-1">
+                <label for="address" class="text-[10px] text-slate-500 uppercase font-black">Full Address</label>
+                <input id="address" type="text" bind:value={localData.address} class="w-full bg-transparent border-b border-slate-700 focus:border-blue-500 outline-none font-mono text-sm py-1" />
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div class="space-y-1">
+                    <label for="issue-date" class="text-[10px] text-slate-500 uppercase font-black">Issue Date</label>
+                    <input id="issue-date" type="text" bind:value={localData.issueDate} class="w-full bg-transparent border-b border-slate-700 focus:border-blue-500 outline-none font-mono text-sm py-1" />
+                </div>
+                <div class="space-y-1">
+                    <label for="exp-date" class="text-[10px] text-slate-500 uppercase font-black">Expiration Date</label>
+                    <input id="exp-date" type="text" bind:value={localData.expirationDate} class="w-full bg-transparent border-b border-slate-700 focus:border-blue-500 outline-none font-mono text-sm py-1" />
+                </div>
+            </div>
+
+            <div class="grid grid-cols-3 gap-4 border-t border-slate-800/50 pt-4">
+                <div class="space-y-1">
+                    <label for="sex" class="text-[10px] text-slate-500 uppercase font-black">Sex</label>
+                    <input id="sex" type="text" bind:value={localData.physical.sex} class="w-full bg-transparent border-b border-slate-700 focus:border-blue-500 outline-none font-mono text-sm py-1" />
+                </div>
+                <div class="space-y-1">
+                    <label for="height" class="text-[10px] text-slate-500 uppercase font-black">Height</label>
+                    <input id="height" type="text" bind:value={localData.physical.height} class="w-full bg-transparent border-b border-slate-700 focus:border-blue-500 outline-none font-mono text-sm py-1" />
+                </div>
+                <div class="space-y-1">
+                    <label for="eyes" class="text-[10px] text-slate-500 uppercase font-black">Eyes</label>
+                    <input id="eyes" type="text" bind:value={localData.physical.eyes} class="w-full bg-transparent border-b border-slate-700 focus:border-blue-500 outline-none font-mono text-sm py-1" />
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4 border-t border-slate-800/50 pt-4">
+                <div class="space-y-1">
+                    <label for="class" class="text-[10px] text-slate-500 uppercase font-black">Class</label>
+                    <input id="class" type="text" bind:value={localData.licenseDetails.class} class="w-full bg-transparent border-b border-slate-700 focus:border-blue-500 outline-none font-mono text-sm py-1" />
+                </div>
+                <div class="space-y-1">
+                    <label for="restrictions" class="text-[10px] text-slate-500 uppercase font-black">Restrictions</label>
+                    <input id="restrictions" type="text" bind:value={localData.licenseDetails.restrictions} class="w-full bg-transparent border-b border-slate-700 focus:border-blue-500 outline-none font-mono text-sm py-1" />
+                </div>
+            </div>
+
+            <div class="space-y-1">
+                <label for="endorsements" class="text-[10px] text-slate-500 uppercase font-black">Endorsements</label>
+                <input id="endorsements" type="text" bind:value={localData.licenseDetails.endorsements} class="w-full bg-transparent border-b border-slate-700 focus:border-blue-500 outline-none font-mono text-xs py-1" />
+            </div>
+
+            <div class="space-y-1 border-t border-slate-800/50 pt-4">
+                <label for="dd" class="text-[10px] text-slate-500 uppercase font-black">Document Discriminator (DD)</label>
+                <input id="dd" type="text" bind:value={localData.documentDiscriminator} class="w-full bg-transparent border-b border-slate-700 focus:border-blue-500 outline-none font-mono text-xs py-1" />
             </div>
         </div>
     </div>
