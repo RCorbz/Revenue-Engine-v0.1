@@ -51,16 +51,33 @@ class ReportingService {
     /**
      * Strategy Engine: Generate localized revenue insights
      */
-    async generateStrategyBriefing(currentRev: number, lastMonthRev: number) {
-        const growth = ((currentRev - lastMonthRev) / lastMonthRev) * 100;
-        const status = growth >= BUSINESS_CONFIG.GROWTH_GOAL ? 'target_met' : 'target_missed';
+    async generateStrategyBriefing(currentAov: number, targetAov: number) {
+        const gap = targetAov - currentAov;
+        const status = currentAov >= targetAov ? 'target_met' : 'target_missed';
         
-        return {
-            growth: growth.toFixed(1) + '%',
-            status,
-            goal: BUSINESS_CONFIG.GROWTH_GOAL + '%',
-            recommendation: status === 'target_met' ? 'Optimize logistics for sustainability.' : 'Initiate retention SMS blitz for past 90d inactive drivers.'
-        };
+        // SEC-2: Audit the analysis trigger
+        return await runInAudit('AI_STRATEGY_BRIEFING', async (db) => {
+            const { aiService } = await import('./ai.service');
+            const briefing = await aiService.getStrategyBriefing({ aov: currentAov, target: targetAov, gap });
+            
+            return {
+                growth: (((currentAov - 100) / 100) * 100).toFixed(1) + '%', // Mock growth vs baseline 100
+                status,
+                goal: '20%',
+                recommendation: briefing
+            };
+        });
+    }
+
+    /**
+     * Fetch drivers requiring re-engagement
+     */
+    async getRetentionDrivers() {
+        // Mocked for DASH-6 until DB supports driver presence tracking
+        return [
+            { id: '1', name: 'James Carter', daysInactive: 32, location: 'Downtown Hub' },
+            { id: '2', name: 'Elena Vance', daysInactive: 45, location: 'North Terminal' }
+        ];
     }
 }
 

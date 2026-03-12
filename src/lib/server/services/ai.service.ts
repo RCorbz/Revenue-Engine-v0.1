@@ -81,21 +81,50 @@ class AIService {
     }
 
     /**
-     * Placeholder for future Strategy Briefing (Gemini Pro)
+     * 📈 Strategy Briefing Gen (Gemini Pro)
+     * Generates a high-level revenue pivot strategy based on current metrics.
      */
-    async getStrategyBriefing(data: any) {
-        // Implementation for DASH-6
-        console.log('📈 [AIService] Generating Strategy Briefing...');
-        return { status: 'pending_implementation' };
+    async getStrategyBriefing(metrics: { aov: number; target: number; gap: number }) {
+        try {
+            const model = this.genAI.getGenerativeModel({ model: GEMINI_CONFIG.MODELS.PRO });
+            const prompt = `
+                As a Senior Revenue Architect, analyze these metrics:
+                - Current AOV: $${metrics.aov}
+                - Target AOV: $${metrics.target}
+                - Gap: $${metrics.gap}
+
+                Provide a 1-sentence reactive strategy to close this gap. Focus on OBT-2 surcharge logic vs volume expansion.
+                Return ONLY the 1-sentence string.
+            `;
+
+            const result = await model.generateContent(prompt);
+            return result.response?.text().trim() || "Analyze surcharge logic to bridge the revenue gap.";
+        } catch (error) {
+            console.error('❌ [AIService] Briefing Error:', error);
+            return metrics.aov < metrics.target 
+                ? "AOV is below the $125 anchor. Recommend triggering OBT-2 surcharge logic." 
+                : "AOV Target achieved. Maintain current mathematical routing.";
+        }
     }
 
     /**
-     * Placeholder for Retention SMS Generation (Gemini Flash-Lite)
+     * 📱 Retention SMS Gen (Gemini Flash-Lite)
+     * Drafts a compelling re-engagement message for inactive drivers.
      */
-    async generateRetentionSMS(driverName: string, event: string) {
-        // Implementation for DASH-6
-        console.log('📱 [AIService] Drafting Retention SMS...');
-        return `Hello ${driverName}, this is a reminder for your ${event}.`;
+    async generateRetentionSMS(driverName: string, daysInactive: number) {
+        try {
+            const model = this.genAI.getGenerativeModel({ model: GEMINI_CONFIG.MODELS.LITE });
+            const prompt = `
+                Draft a professional, friendly SMS to re-engage a driver named ${driverName} who has been inactive for ${daysInactive} days. 
+                Focus on high-revenue regional opportunities. Keep it under 160 characters.
+            `;
+
+            const result = await model.generateContent(prompt);
+            return result.response?.text().trim() || `Hi ${driverName}, we've missed you! High-revenue routes are available in your area. Log in to see your strategy briefing.`;
+        } catch (error) {
+            console.error('❌ [AIService] SMS Gen Error:', error);
+            return `Hello ${driverName}, we have high-demand routes waiting for you. Re-activate your status to see increased rates.`;
+        }
     }
 }
 
