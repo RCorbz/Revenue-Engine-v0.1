@@ -41,13 +41,24 @@ To manage context limits and enforce enterprise-grade builds, you must strictly 
 
 ## 4. The Core Functional Modules
 
-### A. Identity Ingestion & Document Verification
-*   **Capture:** A bounding box UI forces a scan of the PDF417 Barcode on Government IDs using the Google Document AI Identity Processor.
-*   **Validation Thresholds:** 
-    *   **Score > 0.9:** Auto-populate and proceed to intake.
-    *   **Score 0.7 - 0.9:** Route to `ScanReview.svelte` where Gemini 3.1 Flash highlights uncertain fields for one-tap client correction.
-    *   **Score < 0.7:** Trigger mandatory re-scan.
-*   **Fuzzy Mapping:** Gemini 3.1 Flash normalizes addresses (e.g., "Apt 4" to "Suite 4") to ensure clean Google Maps logic for the Mobile Surcharge Engine.
+### A. Identity Ingestion & Document Verification (Hybrid Waterfall)
+*   **Phase 1: High-Fidelity Capture (Frontend):** 
+    *   Targets 1920x1080 resolution with on-device pre-processing (`brightness(1.1)`, `contrast(1.1)`) to maximize OCR success in low-light environments.
+    *   **The Waterfall Logic:** 
+        1. **Edge Decoder (0-8s):** Dedicated Web Worker (`barcode.worker.ts`) attempts real-time PDF417 decoding on the client side using a "Sweet Spot" bounding zone.
+        2. **Cloud Fallback (>8s):** If edge decoding fails, the system automatically captures a high-res full frame and routes it to the **Google Document AI Identity Processor**.
+*   **Phase 2: Neural Grounding (Backend):**
+    *   **DocAI Integration:** Extracts structural entities (Name, DOB, ID Number) and analyzes fraud signals (OBT-15).
+    *   **Gemini 3.1 Flash (Adaptive Thinking):** Performs "Fuzzy Mapping" and semantic normalization on the DocAI result. It cleans addresses and standardizes formats (e.g., `YYYY-MM-DD`).
+*   **Strategic Mandate (Edge Excellence):** The Local Edge Decoder must meet or exceed the performance benchmarks of the **Scanbot SDK**. This is critical for:
+    *   **UI/UX Friction Reduction:** Eliminating the "Network Wait" for the 80% of users with clear documents.
+    *   **Cost Optimization:** Reducing recurring Vertex AI/DocAI API overhead by handling valid high-density PDF417 barcodes locally.
+    *   **Commercial Parity:** Implementing Scanbot-level "Sweet Spot" bounding and high-frequency decoding inside a non-blocking Web Worker.
+    *   **Confidence Routing:** 
+        *   **Score > 0.9:** Auto-populate and proceed.
+        *   **Score 0.7 - 0.9:** Highlights uncertain fields in `ScanReview.svelte` for one-tap correction.
+        *   **Score < 0.7:** Mandatory re-scan.
+    *   **Interactive Confirmation:** Uses a dual-action slider: Swipe Right (Verify/Confirm) or Swipe Left (Manual Failover).
 
 ### B. "Tinder-Style" Frictionless Intake
 *   **Gesture UI:** A 32-card state machine powered by `svelte-gestures` allows users to swipe Left (No) or Right (Yes). **Strict Rule**: Forms must present *only one question at a time* to prevent vertical scrolling. As a card is swiped, it must animate out and the next card animates in.
@@ -157,24 +168,28 @@ export const maskPII = (name: string) => {
 
 ---
 
-## 7. Identity Intake: QA Testing Matrix & OBT Status
+## 7. Identity Intake: Extraction Architecture & OBT Status
+
+### The Hybrid Waterfall Logic Matrix
+| Mechanism | Role | Target | Technology |
+| :--- | :--- | :--- | :--- |
+| **Edge Worker** | Primary (Speed) | Back (Barcode) | `@zxing/library` (PDF417) |
+| **Document AI** | Fallback (Power) | Front/Back (OCR) | `Identity Processor` |
+| **Gemini 3.1 Flash** | Normalizer | Semantics | `normalizeIdentityData` |
 
 ### QA Testing Matrix (TC-01 to TC-07)
-
 | Test ID | Scenario | Status | Implementation Reference |
 | :--- | :--- | :--- | :--- |
-| **TC-01** | Ideal Edge Scan (Decodes < 2s) | 🟡 READY | `barcode.worker.ts`, `Scanner.svelte:L85` |
-| **TC-02** | Live Guidance UI (4s Prompt) | 🟢 DONE | `Scanner.svelte:L71` (`elapsed > 4000`) |
-| **TC-03** | Cloud Fallback Trigger (8s) | 🟢 DONE | `Scanner.svelte:L66` (`elapsed > 8000`) |
-| **TC-04** | Front-Side Fallback (DocAI) | 🟢 DONE | `api/intake/extract/+server.ts` |
-| **TC-05** | Hardware Denial (Permissions) | 🟢 DONE | `Scanner.svelte:L48` (`catch { status = "CAMERA ERROR" }`) |
-| **TC-06** | Cloud API Failure | 🟢 DONE | `Scanner.svelte:L79` (`status = "NETWORK ERROR"`) |
-| **TC-07** | AAMVA Data Integrity | 🟢 DONE | `aamva.ts` (Parsed Regex mapping) |
+| **TC-01** | Ideal Edge Scan (Decodes < 2s) | 🟢 DONE | `barcode.worker.ts`, `Scanner.svelte` |
+| **TC-02** | Live Guidance UI (4s Prompt) | 🟢 DONE | `Scanner.svelte:L182` ("MOVE BARCODE CLOSER") |
+| **TC-03** | Cloud Fallback Trigger (8s) | 🟢 DONE | `Scanner.svelte:L165` (`elapsed > 8000`) |
+| **TC-04** | AI Normalization (Post-OCR) | 🟢 DONE | `gemini.ts` (Adaptive Pass) |
+| **TC-05** | Image Pre-processing | 🟢 DONE | `Scanner.svelte:L189` (`preprocessImage`) |
+| **TC-06** | AAMVA Data Integrity | 🟢 DONE | `aamva.ts` (Parsed Regex mapping) |
 
 ### Active OBT Progress Tracking
-
 | OBT-ID | Description | Status | Verification Path |
 | :--- | :--- | :--- | :--- |
-| **OBT-1** | Scan-to-signature < 120s | 🟡 40% | Worker active; UI Guidance implemented. |
-| **OBT-15** | Compliance Check (Expired IDs) | 🟢 100% | `aamva.ts:L31` (Expiration logic + `isExpired` flag). |
-| **OBT-20** | Correction Efficiency | 🔴 20% | API fallback active; `ScanReview.svelte` Pending. |
+| **OBT-1** | Scan-to-signature < 120s | 🟡 60% | Waterfall active; Cloud grounding validated. |
+| **OBT-15** | Compliance Check (Expired IDs) | 🟢 100% | `aamva.ts` + DocAI Fraud Signal map. |
+| **OBT-20** | Correction Efficiency | 🟡 80% | `ScanReview.svelte` integrated with `fieldConfidences`. |
