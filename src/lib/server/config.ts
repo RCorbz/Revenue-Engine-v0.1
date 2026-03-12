@@ -28,7 +28,8 @@ export const APP_CONFIG = {
     IS_PRODUCTION: process.env.NODE_ENV === 'production',
     DATABASE_URL: DATABASE_URL || process.env.DATABASE_URL || 'postgres://localhost:5432/revenue_engine',
     ENCRYPTION_KEY: ENCRYPTION_KEY || env.ENCRYPTION_KEY,
-    SQUARE_ENV: SQUARE_ENVIRONMENT || 'sandbox'
+    SQUARE_ENV: SQUARE_ENVIRONMENT || 'sandbox',
+    USE_MOCKS: env.VITE_USE_MOCKS === 'true' || (!DATABASE_URL && process.env.NODE_ENV !== 'production')
 };
 
 // 2. Google Cloud Platform Identity (Bridging Static Env to process.env for ADC)

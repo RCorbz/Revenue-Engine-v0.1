@@ -1,4 +1,4 @@
-import { randomBytes, createCipheriv, createDecipheriv } from 'node:crypto';
+import { randomBytes, createCipheriv, createDecipheriv, createHash } from 'node:crypto';
 
 // BMADv6 Standard: AES-256-GCM for Application-Layer Encryption
 const ALGORITHM = 'aes-256-gcm';
@@ -29,4 +29,12 @@ export const decryptSensitiveData = (encryptedData: string, keyHex: string) => {
     decipher.setAuthTag(authTag);
     
     return decipher.update(encrypted) + decipher.final('utf8');
+};
+
+/**
+ * Generates a SHA-256 hash of a payload for OBT-18 (Immutable Audit Trail).
+ */
+export const generateStateHash = (payload: any): string => {
+    const content = typeof payload === 'string' ? payload : JSON.stringify(payload);
+    return createHash('sha256').update(content).digest('hex');
 };

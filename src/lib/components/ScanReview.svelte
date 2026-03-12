@@ -9,7 +9,11 @@
     let isEditing = false;
     
     // Internal state for corrections
-    $: localData = { ...data };
+    $: localData = { 
+        ...data,
+        physical: data.physical || {},
+        licenseDetails: data.licenseDetails || {}
+    };
     $: if (data.comparison) console.log('[ScanReview] Cross-Verification:', data.comparison);
 
     function confirm() {
