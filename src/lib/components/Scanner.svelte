@@ -175,89 +175,11 @@
 
             if (startTime) {
                 const elapsed = Date.now() - startTime;
-                if (elapsed > 8000 && !isFailover) {
-                    console.warn('⚠️ [WATERFALL] Edge Timeout. Falling back to Backside Cloud AI (Phase 2)...');
-                    isFailover = true;
-                    status = "NEURAL AI FALLBACK...";
-                    
-                    // 🛡️ CRITICAL: Recapture High-Res Full Frame for Cloud OCR
-                    canvas.width = video.videoWidth;
-                    canvas.height = video.videoHeight;
-                    ctx.drawImage(video, 0, 0);
-                    const cloudBase64 = canvas.toDataURL('image/jpeg', 0.95);
-                    
-                    triggerCloudBackside(cloudBase64);
-                    
-                    // Reset canvas for continued edge detection if needed (though isFailover stops it)
-                    canvas.width = 640;
-                    canvas.height = 200;
-                } else if (!isFailover) {
-                    status = elapsed > 4000 ? "MOVE BARCODE CLOSER" : "ALIGN BARCODE";
-                }
+                status = elapsed > 4000 ? "MOVE BARCODE CLOSER" : "ALIGN BARCODE";
             }
         }
 
         scanFrameId = requestAnimationFrame(processFrame);
-    }
-
-    async function triggerCloudBackside(base64: string) {
-        const imgSizeKB = Math.round(base64.length * 0.75 / 1024);
-        console.log(`📸 [PHASE 1: SIZE] Backside Frame: ${imgSizeKB}KB`);
-        console.log('🚀 [PHASE 2: CLOUD UPLOAD] Sending Backside Frame to Backup Cloud AI...');
-        try {
-            const res = await fetch('/intake/extract', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    image: base64,
-                    side: 'back'
-                })
-            });
-            
-            if (!res.ok) {
-                const errData = await res.json();
-                throw new Error(errData.error || 'Server Error');
-            }
-
-                const result = await res.json();
-                if (result.success && result.data) {
-                    // Perform Cross-Verification: Front (extractedData) vs Back (result.data)
-                    console.log('⚖️ [VERIFICATION] Comparing Front Data:', extractedData);
-                    console.log('⚖️ [VERIFICATION] Against Back Data:', result.data);
-                    
-                    const comparison = compareIdentity(extractedData, result.data);
-                    
-                    // SMART MERGE: PRIORITIZE FRONT-SIDE DATA (Gemini 3.1 Neural Pass)
-                    const mergedData = { ...extractedData };
-                    for (const key in result.data) {
-                        const newVal = result.data[key];
-                        // Only fill in if front-side is missing AND back-side has valid data
-                        const frontPathVal = mergedData[key];
-                        const isFrontEmpty = !frontPathVal || frontPathVal === '' || frontPathVal === 'null' || frontPathVal === 'MISSING';
-                        
-                        if (isFrontEmpty && newVal && newVal !== '' && newVal !== 'null' && newVal !== 'MISSING') {
-                            mergedData[key] = newVal;
-                        }
-                    }
-
-                    const finalData = { 
-                        ...mergedData, 
-                        comparison,
-                        source: result.source || 'cloud'
-                    };
-                    
-                    console.log('🏁 [INTAKE COMPLETE] Dispatching Merged Identity:', finalData);
-                    handleResult(finalData, 'cloud');
-                } else {
-                status = "BACK SCAN FAILED. TRY AGAIN.";
-                console.warn('⚠️ [INTAKE] Back capture empty.');
-                isFailover = false;
-                startTime = Date.now();
-            }
-        } catch (e) {
-            status = "NETWORK ERROR (BACK)";
-            console.error('❌ [BACK CLOUD] Terminal error:', e);
-        }
     }
 
     function handleResult(data: any, source: string) {
