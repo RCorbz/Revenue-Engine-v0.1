@@ -1,0 +1,19 @@
+﻿[dotenv@17.3.1] injecting env (15) from .env -- tip: ΓÜÖ∩╕Å  override existing env vars with { override: true }
+≡ƒÜÇ [PROBE] Initializing Enterprise AI Foundation...
+≡ƒôí [PROBE] Project: 351328298118 | Region: us-central1
+≡ƒºá [PROBE] Testing model: gemini-3.1-flash-lite-preview... Γ¥î FAILED: {"error":{"code":404,"message":"Publisher Model `projects/351328298118/locations/us-central1/publish
+≡ƒºá [PROBE] Testing model: gemini-3.1-flash-preview... Γ¥î FAILED: {"error":{"code":404,"message":"Publisher Model `projects/351328298118/locations/us-central1/publish
+≡ƒºá [PROBE] Testing model: gemini-1.5-flash-002... Γ¥î FAILED: {"error":{"code":404,"message":"Publisher Model `projects/351328298118/locations/us-central1/publish
+≡ƒºá [PROBE] Testing model: gemini-1.5-flash... Γ¥î FAILED: {"error":{"code":404,"message":"Publisher Model `projects/351328298118/locations/us-central1/publish
+≡ƒöì [DIAGNOSTIC] ACTION REQUIRED:
+   - The Model Registry is EMPTY for this region/project.
+   - Go to Model Garden: https://console.cloud.google.com/vertex-ai/model-garden
+   - Search for 'Gemini 3.1 Flash Lite' and click 'Enable' or 'Open in Vertex AI Studio'.
+node.exe : 
+At line:1 char:1
++ & "C:\Program Files\nodejs/node.exe" "C:\Users\RCorbz\AppData\Roaming ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+≡ƒÆÇ [FATAL] All probe models failed with 404.

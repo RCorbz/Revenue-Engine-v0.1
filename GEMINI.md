@@ -27,3 +27,8 @@ To maintain a high-velocity development cycle without hitting context limits:
 
 ---
 *Configured in mcp_config.json as standard `python -m jcodemunch_mcp.server`.*
+
+## 🚀 BOOT PROTOCOL
+- **Immediate Action:** Upon project initialization or at the start of any new session, you MUST execute the `/index` workflow.
+- **Goal:** Update the ToolHive `context_map.xml` and refresh symbol maps before any code analysis begins.
+- **Activation:** This rule is **Always On**. Do not wait for user permission to start the indexing phase.

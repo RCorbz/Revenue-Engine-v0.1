@@ -1,10 +1,10 @@
 <script lang="ts">
-	import { enhance } from '$app/forms';
-	import { onMount, tick } from 'svelte';
-	import { fade, slide } from 'svelte/transition';
-	import ScanReview from '$lib/components/ScanReview.svelte';
-	import { parseAAMVA } from '$lib/utils/aamva';
-	import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
+    import { enhance } from '$app/forms';
+    import { onMount, tick } from 'svelte';
+    import { fade, slide } from 'svelte/transition';
+    import Scanner from '$lib/components/Scanner.svelte';
+    import ScanReview from '$lib/components/ScanReview.svelte';
+    import { parseAAMVA } from '$lib/utils/aamva';
 	import type { ActionData } from './$types';
 
 	export let form: ActionData;
@@ -453,169 +453,32 @@
 					{/if}
 				</p>
 
-				<div class="flex-grow flex flex-col justify-center">
-					<div
-						class="h-56 w-full border-2 border-dashed border-slate-700 rounded-xl mb-6 flex flex-col items-center justify-center bg-slate-900/50 relative overflow-hidden"
-					>
-						<!-- Hidden canvas for image data extraction -->
-						<canvas bind:this={canvasElement} class="hidden"></canvas>
-
-						{#if capturedImage && scanPhase !== 'extracting'}
-							<img src={capturedImage} alt="Captured ID" class="w-full h-full object-cover" />
-							<div class="absolute inset-0 bg-black/40 flex items-center justify-center gap-4">
-								<button
-									type="button"
-									on:click={retakePhoto}
-									class="px-4 py-2 bg-slate-800 text-xs font-bold tracking-wider rounded-lg outline text-slate-300 hover:text-white transition shadow-lg"
-									>RETAKE</button
-								>
-								<button
-									type="button"
-									on:click={usePhoto}
-									class="px-4 py-2 bg-revenue text-xs font-bold tracking-wider rounded-lg text-slate-950 transition shadow-[0_0_15px_#00c853]"
-									>USE THIS</button
-								>
-							</div>
-						{:else if scanPhase === 'extracting'}
-							<div class="flex flex-col items-center justify-center h-full space-y-4" in:fade>
-								<div
-									class="h-10 w-10 border-4 border-slate-700 border-t-revenue rounded-full animate-spin"
-								></div>
-								<p class="text-xs font-mono text-slate-400 animate-pulse">Analyzing payload...</p>
-							</div>
-						{:else if scanning}
-							<video
-								bind:this={videoElement}
-								class="w-full h-full object-cover"
-								autoplay
-								playsinline
-								muted
-							></video>
-
-							{#if scanPhase === 'front'}
-								<!-- High-fidelity Bounding Box for Front ID Positioning -->
-								<div
-									class="absolute inset-x-6 top-1/2 -translate-y-1/2 h-44 border-2 border-white/40 rounded-xl pointer-events-none shadow-[0_0_20px_rgba(255,255,255,0.2)]"
-								>
-									<!-- Corner Guides -->
-									<div
-										class="absolute -top-1 -left-1 w-6 h-6 border-t-4 border-l-4 border-revenue rounded-tl-lg"
-									></div>
-									<div
-										class="absolute -top-1 -right-1 w-6 h-6 border-t-4 border-r-4 border-revenue rounded-tr-lg"
-									></div>
-									<div
-										class="absolute -bottom-1 -left-1 w-6 h-6 border-b-4 border-l-4 border-revenue rounded-bl-lg"
-									></div>
-									<div
-										class="absolute -bottom-1 -right-1 w-6 h-6 border-b-4 border-r-4 border-revenue rounded-br-lg"
-									></div>
-
-									<p
-										class="absolute -bottom-8 inset-x-0 text-center text-[10px] text-white/60 font-mono tracking-widest uppercase"
-									>
-										Center Front of ID in Frame
-									</p>
-								</div>
-							{:else if scanPhase === 'back'}
-								<!-- High-density barcode target overlay -->
-								<div
-									class="absolute inset-x-8 top-1/2 -translate-y-1/2 h-32 border-2 border-revenue/50 rounded-lg shadow-[0_0_15px_rgba(0,200,83,0.3)] pointer-events-none"
-								>
-									<div
-										class="h-0.5 w-full bg-revenue/80 shadow-[0_0_10px_#00c853] absolute top-1/2 -translate-y-1/2"
-									></div>
-								</div>
-							{/if}
-
-							<div class="absolute bottom-4 inset-x-0 flex justify-center z-10">
-								<button
-									type="button"
-									on:click={captureFrame}
-									aria-label="Capture Photo"
-									class="h-12 w-12 rounded-full border-4 border-white bg-white/30 backdrop-blur-sm flex items-center justify-center hover:bg-white/50 transition"
-								>
-									<div class="h-8 w-8 bg-white rounded-full"></div>
-								</button>
-							</div>
-
-							{#if scanTimeout && scanPhase === 'back'}
-								<p
-									class="absolute top-2 text-[10px] font-mono bg-black/50 px-2 py-1 rounded text-revenue/80"
-								>
-									Scanning Barcode...
-								</p>
-							{/if}
-						{:else if scanPhase === 'review' && scannerResult}
-							<div class="flex flex-col h-full w-full p-4">
-								<ScanReview data={scannerResult} {fieldConfidences} on:confirm={handleScanReview} />
-							</div>
-						{:else if scanFailed}
-							<div class="text-red-500 text-4xl mb-2">⚠</div>
-							<p
-								class="text-[11px] text-red-400 font-mono mb-1 text-center px-4 uppercase font-bold"
-							>
-								{extractionError || 'Extraction Failed'}
-							</p>
-							<p class="text-[10px] text-slate-500 font-mono mb-4 text-center px-4">
-								Adjust lighting or ensure the barcode fits within the target area.
-							</p>
-							<div class="flex gap-2">
-								<button
-									type="button"
-									on:click={startCamera}
-									class="px-4 py-2 bg-slate-800 text-xs font-bold tracking-wider rounded-lg outline hover:bg-slate-700 transition"
-									>RETRY SCAN</button
-								>
-								<button
-									type="button"
-									on:click={mockSuccessfulScan}
-									class="px-4 py-2 bg-slate-800/50 text-xs font-bold tracking-wider rounded-lg text-slate-400 hover:text-white transition"
-									>TEST DATA</button
-								>
-							</div>
-						{:else if scanPhase === 'done' && scannerResult}
-							<div class="text-revenue text-4xl mb-2">✓</div>
-							<p class="text-xs text-revenue font-mono">ID Authenticated</p>
-						{:else}
-							<button
-								type="button"
-								on:click={startCamera}
-								class="px-6 py-2 bg-slate-800 text-sm font-bold tracking-wider rounded-lg outline hover:bg-slate-700 transition"
-								>ACTIVATE CAMERA</button
-							>
-							<div class="absolute bottom-2 right-2">
-								<button
-									type="button"
-									on:click={mockSuccessfulScan}
-									class="text-[10px] text-slate-600 hover:text-slate-400 transition underline"
-									>Skip / Dev Mode</button
-								>
-							</div>
-						{/if}
-					</div>
-
+				<div class="flex-grow flex flex-col justify-center min-h-[350px]">
 					{#if scanPhase === 'done' && scannerResult}
-						<div class="bg-black/40 p-3 rounded-lg border border-revenue/30 mb-auto" in:fade>
+						<div class="flex flex-col items-center justify-center space-y-4 mb-6" in:fade>
+							<div class="text-revenue text-4xl mb-2">✓</div>
+							<p class="text-xs text-revenue font-mono font-bold tracking-widest uppercase">ID Authenticated</p>
+						</div>
+
+						<div class="bg-black/40 p-3 rounded-lg border border-revenue/30" in:fade>
 							<div class="flex justify-between items-center mb-1 border-b border-slate-800 pb-1">
 								<p class="text-[10px] text-slate-500 font-mono">EXTRACTED IDENTITY MATCH</p>
 								<span
-									class="text-[8px] px-1.5 py-0.5 rounded {scannerResult.source === 'live' ||
-									scannerResult.source === 'ai_failover'
-										? 'bg-revenue/20 text-revenue border border-revenue/30'
-										: 'bg-amber-500/20 text-amber-500 border border-amber-500/30'} font-bold tracking-tighter uppercase"
+									class="text-[8px] px-1.5 py-0.5 rounded {scannerResult.source === 'edge'
+										? 'bg-green-500/20 text-green-400 border border-green-500/30'
+										: 'bg-blue-500/20 text-blue-400 border border-blue-500/30'} font-bold tracking-tighter uppercase"
 								>
-									{scannerResult.source === 'ai_failover' ? 'LIVE' : scannerResult.source || 'TEST'}
+									{scannerResult.source?.toUpperCase() || 'SCAN'}
 								</span>
 							</div>
 							<div class="grid grid-cols-2 gap-2 text-xs">
-								<div><span class="text-slate-500">Name:</span> {scannerResult.driverName}</div>
+								<div class="overflow-hidden text-ellipsis whitespace-nowrap"><span class="text-slate-500">Name:</span> {scannerResult.driverName}</div>
 								<div><span class="text-slate-500">DL:</span> {scannerResult.licenseNumber}</div>
 								<div><span class="text-slate-500">DOB:</span> {scannerResult.dob}</div>
 								<div>
 									<span class="text-slate-500">Status:</span>
 									<span
-										class={scannerResult.verificationStatus === 'Verified'
+										class={scannerResult.verificationStatus?.includes('Verified')
 											? 'text-revenue'
 											: 'text-amber-500'}
 									>
@@ -624,6 +487,19 @@
 								</div>
 							</div>
 						</div>
+					{:else}
+						<Scanner on:complete={(e) => {
+							const data = e.detail;
+							scannerResult = {
+								driverName: `${data.firstName} ${data.lastName}`,
+								ssn: data.idNumber,
+								dob: data.dob,
+								licenseNumber: data.idNumber,
+								source: data.source,
+								verificationStatus: (data.confidence || 0) > 0.9 ? 'Verified' : 'Manual Review'
+							};
+							scanPhase = 'done';
+						}} />
 					{/if}
 				</div>
 

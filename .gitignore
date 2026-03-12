@@ -29,3 +29,7 @@ gcp-key.json
 *.json.key
 secrets/
 .google/
+
+# Add to .gitignore
+tmp/
+svelte_err.txt

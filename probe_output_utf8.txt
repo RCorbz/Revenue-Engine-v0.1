@@ -1,0 +1,34 @@
+﻿[dotenv@17.3.1] injecting env (14) from .env -- tip: ΓÜÖ∩╕Å  specify custom .env file path with { path: '/custom/path/.env' }
+≡ƒÜÇ [PROBE] Initializing Enterprise AI Foundation...
+≡ƒôí [PROBE] Target: 351328298118 / gemini-3.1-flash-lite-preview @ us-central1
+≡ƒºá [PROBE] Sending Hello World request...
+node.exe : Γ¥î [PROBE] FAILED: 
+{"error":{"code":404,"message":"Publisher 
+Model `projects/351328298118/locations/us-centr
+al1/publishers/google/models/gemini-3.1-flash-l
+ite-preview` was not found or your project 
+does not have access to it. Please ensure you 
+are using a valid model version. For more 
+information, see: https://cloud.google.com/vert
+ex-ai/generative-ai/docs/learn/model-versions",
+"status":"NOT_FOUND"}}
+At line:1 char:1
++ & "C:\Program Files\nodejs/node.exe" 
+"C:\Users\RCorbz\AppData\Roaming ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified:    
+ (Γ¥î [PROBE] FAI...":"NOT_FOUND"}}:Strin    
+g) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandE   
+ rror
+ 
+
+≡ƒöì [DIAGNOSTIC] Root Cause: MODEL_GARDEN_BLOCK
+   - The model 'gemini-3.1-flash-lite-preview' is not found in the Vertex AI registry for project '351328298118'.
+   - ACTION: Open GCP Console -> Vertex AI -> Model Garden.
+   - ACTION: Search for 'gemini-3.1-flash-lite-preview' and ensure 'Enable' or 'Accept Terms' is completed.
+   - ACTION: Verify that region 'us-central1' supports this model in your billing tier.
+Assertion failed: !(handle->flags & 
+UV_HANDLE_CLOSING), file src\win\async.c, line 
+76

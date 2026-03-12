@@ -154,3 +154,27 @@ export const encryptSensitiveData = (data: string) => {
 export const maskPII = (name: string) => {
   return name.charAt(0) + "***" + name.charAt(name.length - 1);
 };
+
+---
+
+## 7. Identity Intake: QA Testing Matrix & OBT Status
+
+### QA Testing Matrix (TC-01 to TC-07)
+
+| Test ID | Scenario | Status | Implementation Reference |
+| :--- | :--- | :--- | :--- |
+| **TC-01** | Ideal Edge Scan (Decodes < 2s) | 🟡 READY | `barcode.worker.ts`, `Scanner.svelte:L85` |
+| **TC-02** | Live Guidance UI (4s Prompt) | 🟢 DONE | `Scanner.svelte:L71` (`elapsed > 4000`) |
+| **TC-03** | Cloud Fallback Trigger (8s) | 🟢 DONE | `Scanner.svelte:L66` (`elapsed > 8000`) |
+| **TC-04** | Front-Side Fallback (DocAI) | 🟢 DONE | `api/intake/extract/+server.ts` |
+| **TC-05** | Hardware Denial (Permissions) | 🟢 DONE | `Scanner.svelte:L48` (`catch { status = "CAMERA ERROR" }`) |
+| **TC-06** | Cloud API Failure | 🟢 DONE | `Scanner.svelte:L79` (`status = "NETWORK ERROR"`) |
+| **TC-07** | AAMVA Data Integrity | 🟢 DONE | `aamva.ts` (Parsed Regex mapping) |
+
+### Active OBT Progress Tracking
+
+| OBT-ID | Description | Status | Verification Path |
+| :--- | :--- | :--- | :--- |
+| **OBT-1** | Scan-to-signature < 120s | 🟡 40% | Worker active; UI Guidance implemented. |
+| **OBT-15** | Compliance Check (Expired IDs) | 🟢 100% | `aamva.ts:L31` (Expiration logic + `isExpired` flag). |
+| **OBT-20** | Correction Efficiency | 🔴 20% | API fallback active; `ScanReview.svelte` Pending. |

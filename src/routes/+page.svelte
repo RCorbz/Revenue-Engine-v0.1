@@ -63,7 +63,8 @@
 
 		<div class="grid grid-cols-1 gap-3">
 			{#each tiers as tier}
-				<button
+				<a
+					href={tier.primary ? "/test-scanner" : "#"}
 					class="relative flex items-center justify-between p-4 rounded-xl border transition-all
           {tier.primary
 						? 'border-revenue bg-revenue/10 scale-105 shadow-lg shadow-revenue/20'
@@ -89,7 +90,7 @@
 							POPULAR
 						</div>
 					{/if}
-				</button>
+				</a>
 			{/each}
 		</div>
 	</section>

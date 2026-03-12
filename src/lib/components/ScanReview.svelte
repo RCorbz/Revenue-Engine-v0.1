@@ -1,90 +1,88 @@
 <script lang="ts">
-	import { fade, slide } from 'svelte/transition';
-	import { createEventDispatcher } from 'svelte';
+    import { createEventDispatcher } from 'svelte';
+    import { maskPII } from '$lib/utils/format';
 
-	const dispatch = createEventDispatcher();
+    export let data: {
+        firstName: string;
+        lastName: string;
+        idNumber: string;
+        dob: string;
+        expirationDate?: string;
+        isExpired?: boolean;
+        source: 'barcode' | 'ocr';
+        confidence?: number;
+    };
 
-	export let data: {
-		driverName: string;
-		dob: string;
-		licenseNumber: string;
-		address?: string;
-	};
+    const dispatch = createEventDispatcher();
+    let isEditing = false;
+    
+    // Internal state for corrections
+    let localData = { ...data };
 
-	export let fieldConfidences: Record<string, number> = {};
+    function confirm() {
+        dispatch('verified', localData);
+    }
 
-	function isLowConfidence(field: string) {
-		return (fieldConfidences[field] || 1.0) < 0.9;
-	}
-
-	function handleConfirm() {
-		dispatch('confirm', data);
-	}
-
-	function updateField(field: keyof typeof data, value: string) {
-		data[field] = value;
-	}
+    function reScan() {
+        dispatch('rescan');
+    }
 </script>
 
-<div class="flex flex-col h-full space-y-4" in:fade>
-	<div class="bg-amber-500/10 border border-amber-500/30 p-3 rounded-xl flex items-start gap-3">
-		<span class="text-amber-500 text-lg">⚠</span>
-		<div>
-			<p class="text-[11px] font-bold text-amber-500 uppercase tracking-wider">Review Required</p>
-			<p class="text-[10px] text-slate-400">
-				Some details were blurry. Please verify before proceeding.
-			</p>
-		</div>
-	</div>
+<div class="bg-slate-900 rounded-3xl p-6 border border-slate-800 space-y-6 animate-in fade-in slide-in-from-bottom-4">
+    <div class="flex items-center justify-between">
+        <div class="space-y-1">
+            <h2 class="text-xl font-bold tracking-tight">Review Identity</h2>
+            <p class="text-[10px] text-slate-500 uppercase font-black tracking-widest">
+                Source: {data.source} {#if data.confidence}({Math.round(data.confidence * 100)}% Match){/if}
+            </p>
+        </div>
+        {#if data.isExpired}
+            <span class="bg-red-500/20 text-red-400 px-3 py-1 rounded-full text-[10px] font-black uppercase">EXPIRED</span>
+        {:else}
+            <span class="bg-green-500/20 text-green-400 px-3 py-1 rounded-full text-[10px] font-black uppercase">VALID</span>
+        {/if}
+    </div>
 
-	<div class="space-y-3 overflow-y-auto pr-1">
-		{#each Object.entries(data) as [key, value]}
-			{#if key !== 'verificationStatus' && key !== 'address'}
-				<div
-					class="bg-slate-900 border {isLowConfidence(key)
-						? 'border-amber-500/50'
-						: 'border-slate-800'} p-3 rounded-xl transition-all"
-				>
-					<div class="flex justify-between items-center mb-1">
-						<label
-							for="review-{key}"
-							class="text-[10px] text-slate-500 uppercase font-bold tracking-widest"
-						>
-							{key.replace(/([A-Z])/g, ' $1').trim()}
-						</label>
-						{#if isLowConfidence(key)}
-							<span
-								class="text-[8px] bg-amber-500/20 text-amber-500 px-1.5 py-0.5 rounded font-black tracking-tighter uppercase"
-								>Low Confidence</span
-							>
-						{:else}
-							<span class="text-revenue text-[8px] font-black uppercase tracking-tighter"
-								>Verified</span
-							>
-						{/if}
-					</div>
-					<input
-						id="review-{key}"
-						type="text"
-						{value}
-						on:input={(e) => updateField(key as any, e.currentTarget.value)}
-						class="w-full bg-transparent border-none p-0 text-sm font-bold text-white focus:ring-0 placeholder-slate-600"
-					/>
-				</div>
-			{/if}
-		{/each}
-	</div>
+    <div class="grid grid-cols-1 gap-4">
+        <div class="bg-slate-950/50 rounded-2xl p-4 border border-slate-800/50 space-y-4">
+            <div class="grid grid-cols-2 gap-4">
+                <div class="space-y-1">
+                    <label for="first-name" class="text-[10px] text-slate-500 uppercase font-black">First Name</label>
+                    <input id="first-name" type="text" bind:value={localData.firstName} class="w-full bg-transparent border-b border-slate-700 focus:border-blue-500 outline-none font-mono text-sm py-1" />
+                </div>
+                <div class="space-y-1">
+                    <label for="last-name" class="text-[10px] text-slate-500 uppercase font-black">Last Name</label>
+                    <input id="last-name" type="text" bind:value={localData.lastName} class="w-full bg-transparent border-b border-slate-700 focus:border-blue-500 outline-none font-mono text-sm py-1" />
+                </div>
+            </div>
 
-	<div class="mt-auto pt-6">
-		<button
-			type="button"
-			on:click={handleConfirm}
-			class="w-full h-14 bg-revenue text-slate-950 font-black tracking-[0.2em] text-sm uppercase rounded-2xl shadow-[0_10px_20px_rgba(0,200,83,0.3)] hover:brightness-110 active:scale-[0.98] transition-all"
-		>
-			Confirm & Proceed
-		</button>
-		<p class="text-center text-[10px] text-slate-600 mt-3 font-mono">
-			OBT-20: Correction Protocol Active
-		</p>
-	</div>
+            <div class="grid grid-cols-2 gap-4">
+                <div class="space-y-1">
+                    <label for="id-number" class="text-[10px] text-slate-500 uppercase font-black">ID Number</label>
+                    <input id="id-number" type="text" bind:value={localData.idNumber} class="w-full bg-transparent border-b border-slate-700 focus:border-blue-500 outline-none font-mono text-sm py-1" />
+                </div>
+                <div class="space-y-1">
+                    <label for="dob" class="text-[10px] text-slate-500 uppercase font-black">Date of Birth</label>
+                    <input id="dob" type="text" bind:value={localData.dob} class="w-full bg-transparent border-b border-slate-700 focus:border-blue-500 outline-none font-mono text-sm py-1" />
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="flex flex-col gap-3">
+        <button 
+            class="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-2xl shadow-lg shadow-blue-900/20 transition-all flex items-center justify-center space-x-2"
+            on:click={confirm}
+        >
+            <span>CONFIRM IDENTITY</span>
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        </button>
+        
+        <button 
+            class="w-full py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-2xl transition-all"
+            on:click={reScan}
+        >
+            RE-SCAN DOCUMENT
+        </button>
+    </div>
 </div>
