@@ -8,6 +8,11 @@
     let video: HTMLVideoElement;
     let canvas: HTMLCanvasElement;
     let worker: Worker;
+    let edgeWorker: Worker;
+    
+    let isNeuralLocked = false;
+    let lockTimestamp: number | null = null;
+    let focusScore = 0;
     
     type Phase = 'front' | 'back' | 'extracting';
     let phase: Phase = 'front';
@@ -28,9 +33,33 @@
     onMount(() => {
         console.log('⚡ [EDGE ENGINE] Initializing Enterprise Intake...');
         
-        // VITE-SAFE WORKER INITIALIZATION (Relative Path)
+        // EDGE DETECTOR INITIALIZATION
         worker = new Worker(new URL('../workers/barcode.worker.ts', import.meta.url), { type: 'module' });
+        edgeWorker = new Worker(new URL('../workers/edge-detector.worker.ts', import.meta.url), { type: 'module' });
         
+        edgeWorker.onmessage = (e) => {
+            if (phase !== 'front') return;
+            
+            const { isStable, focusScore: fs } = e.data;
+            focusScore = fs;
+            
+            if (isStable) {
+                if (!isNeuralLocked) {
+                    isNeuralLocked = true;
+                    lockTimestamp = Date.now();
+                    if (navigator.vibrate) navigator.vibrate(50);
+                } else if (lockTimestamp && Date.now() - lockTimestamp > 750) {
+                    console.log('🎯 [NEURAL LOCK] Auto-triggering capture (Confidence high)');
+                    captureSide('front');
+                    isNeuralLocked = false;
+                    lockTimestamp = null;
+                }
+            } else {
+                isNeuralLocked = false;
+                lockTimestamp = null;
+            }
+        };
+
         worker.onmessage = (e) => {
             if (e.data.success && phase === 'back') {
                 console.log('✅ [EDGE ENGINE] PDF417 Detected & Decoded.');
@@ -71,6 +100,7 @@
     onDestroy(() => {
         if (scanFrameId) cancelAnimationFrame(scanFrameId);
         worker?.terminate();
+        edgeWorker?.terminate();
         stopStream();
     });
 
@@ -210,14 +240,35 @@
             return;
         }
         
-        if (phase === 'back') {
-            const ctx = canvas.getContext('2d', { willReadFrequently: true });
-            if (!ctx) return;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        if (!ctx) return;
 
+        if (phase === 'front') {
+            // Neural Sampling for Front Side (640px for speed)
+            const sampleWidth = 640;
+            const sampleScale = sampleWidth / video.videoWidth;
+            canvas.width = sampleWidth;
+            canvas.height = video.videoHeight * sampleScale;
+            
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            
+            edgeWorker.postMessage({
+                imageData: imageData.data,
+                width: canvas.width,
+                height: canvas.height
+            });
+
+            status = isNeuralLocked ? "HOLD STEADY..." : "ALIGN FRONT OF ID";
+        } else if (phase === 'back') {
             // "Sweet Spot" Targeted Barcode Capture - Increased area (60%)
             const scanHeight = video.videoHeight * 0.6;
             const scanTop = (video.videoHeight - scanHeight) / 2;
             
+            // Set canvas size for barcode
+            canvas.width = video.videoWidth * (640 / video.videoWidth); // match worker expectation
+            canvas.height = scanHeight * (640 / video.videoWidth);
+
             ctx.drawImage(video, 0, scanTop, video.videoWidth, scanHeight, 0, 0, canvas.width, canvas.height);
             const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
 
@@ -286,25 +337,29 @@
         <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none p-10">
             {#if phase === 'front'}
                 <div in:fade class="w-full h-full border-2 border-white/5 rounded-3xl shadow-[0_0_0_100vmax_rgba(0,0,0,0.6)] relative overflow-hidden flex items-center justify-center">
-                    <!-- PULSING WATERMARK -->
-                    <div class="absolute text-6xl font-black text-white/10 uppercase tracking-[0.6em] animate-watermark-pulse pointer-events-none select-none z-0">Front</div>
+                    <!-- STATIC WATERMARK (CENTERED FIT) -->
+                    <div class="absolute inset-0 flex items-center justify-center pointer-events-none select-none z-0">
+                        <span class="text-7xl font-black text-white opacity-10 uppercase tracking-[0.6em]">Front</span>
+                    </div>
 
                     <!-- DIAGONAL GUIDANCE ARROWS (GREEN) -->
-                    <!-- Top Left: Points Top-Left (-135deg) -->
-                    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-arrow-diag-tl z-10">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-green-500/80 -rotate-135" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7l10 10"/><path d="M17 7v10H7"/></svg>
+                    <!-- Standard Arrow Path (points Right 0deg): M5 12h14M12 5l7 7-7 7 -->
+                    
+                    <!-- Top Left -->
+                    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 {isNeuralLocked ? 'scale-125' : 'animate-arrow-nw'} z-10 transition-transform duration-300">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-10 h-10 {isNeuralLocked ? 'text-green-400 opacity-100' : 'text-green-500 opacity-80'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" style="transform: rotate(-135deg);"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
                     </div>
-                    <!-- Top Right: Points Top-Right (-45deg) -->
-                    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-arrow-diag-tr z-10">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-green-500/80 -rotate-45" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7l10 10"/><path d="M17 7v10H7"/></svg>
+                    <!-- Top Right -->
+                    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 {isNeuralLocked ? 'scale-125' : 'animate-arrow-ne'} z-10 transition-transform duration-300">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-10 h-10 {isNeuralLocked ? 'text-green-400 opacity-100' : 'text-green-500 opacity-80'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" style="transform: rotate(-45deg);"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
                     </div>
-                    <!-- Bottom Left: Points Bottom-Left (135deg) -->
-                    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-arrow-diag-bl z-10">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-green-500/80 rotate-135" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7l10 10"/><path d="M17 7v10H7"/></svg>
+                    <!-- Bottom Left -->
+                    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 {isNeuralLocked ? 'scale-125' : 'animate-arrow-sw'} z-10 transition-transform duration-300">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-10 h-10 {isNeuralLocked ? 'text-green-400 opacity-100' : 'text-green-500 opacity-80'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" style="transform: rotate(135deg);"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
                     </div>
-                    <!-- Bottom Right: Points Bottom-Right (45deg) -->
-                    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-arrow-diag-br z-10">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-green-500/80 rotate-45" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7l10 10"/><path d="M17 7v10H7"/></svg>
+                    <!-- Bottom Right -->
+                    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 {isNeuralLocked ? 'scale-125' : 'animate-arrow-se'} z-10 transition-transform duration-300">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-10 h-10 {isNeuralLocked ? 'text-green-400 opacity-100' : 'text-green-500 opacity-80'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" style="transform: rotate(45deg);"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
                     </div>
                     
                     <!-- Guidance Scanline -->
@@ -350,6 +405,7 @@
                     <button 
                         type="button" 
                         on:click={() => captureSide('back')}
+                        aria-label="Capture Identity Back"
                         class="h-24 w-24 rounded-full border-[8px] border-green-500/20 bg-green-500/5 p-1.5 flex items-center justify-center hover:bg-green-500/10 transition-all active:scale-95 shadow-[0_20px_40px_-10px_rgba(34,197,94,0.3)] group"
                     >
                         <div class="h-full w-full bg-green-500 rounded-full shadow-xl group-hover:scale-105 transition-transform flex items-center justify-center">
@@ -405,19 +461,19 @@
         animation: scan-y 2.5s infinite;
     }
 
-    @keyframes arrow-bounce-diag-tl { 0%, 100% { transform: translate(-30px, -15px) rotate(-135deg) scale(0.8); opacity: 0; } 50% { transform: translate(-100px, -50px) rotate(-135deg) scale(1.1); opacity: 0.8; } }
-    @keyframes arrow-bounce-diag-tr { 0%, 100% { transform: translate(30px, -15px) rotate(-45deg) scale(0.8); opacity: 0; } 50% { transform: translate(100px, -50px) rotate(-45deg) scale(1.1); opacity: 0.8; } }
-    @keyframes arrow-bounce-diag-bl { 0%, 100% { transform: translate(-30px, 15px) rotate(135deg) scale(0.8); opacity: 0; } 50% { transform: translate(-100px, 50px) rotate(135deg) scale(1.1); opacity: 0.8; } }
-    @keyframes arrow-bounce-diag-br { 0%, 100% { transform: translate(30px, 15px) rotate(45deg) scale(0.8); opacity: 0; } 50% { transform: translate(100px, 50px) rotate(45deg) scale(1.1); opacity: 0.8; } }
+    @keyframes arrow-nw { 0% { transform: translate(0, 0) scale(0.5); opacity: 0; } 50% { opacity: 1; } 100% { transform: translate(-120px, -60px) scale(1.2); opacity: 0; } }
+    @keyframes arrow-ne { 0% { transform: translate(0, 0) scale(0.5); opacity: 0; } 50% { opacity: 1; } 100% { transform: translate(120px, -60px) scale(1.2); opacity: 0; } }
+    @keyframes arrow-sw { 0% { transform: translate(0, 0) scale(0.5); opacity: 0; } 50% { opacity: 1; } 100% { transform: translate(-120px, 60px) scale(1.2); opacity: 0; } }
+    @keyframes arrow-se { 0% { transform: translate(0, 0) scale(0.5); opacity: 0; } 50% { opacity: 1; } 100% { transform: translate(120px, 60px) scale(1.2); opacity: 0; } }
 
-    .animate-arrow-diag-tl { animation: arrow-bounce-diag-tl 2s ease-in-out infinite; }
-    .animate-arrow-diag-tr { animation: arrow-bounce-diag-tr 2s ease-in-out infinite; }
-    .animate-arrow-diag-bl { animation: arrow-bounce-diag-bl 2s ease-in-out infinite; }
-    .animate-arrow-diag-br { animation: arrow-bounce-diag-br 2s ease-in-out infinite; }
+    .animate-arrow-nw { animation: arrow-nw 2s cubic-bezier(0.4, 0, 0.2, 1) infinite; }
+    .animate-arrow-ne { animation: arrow-ne 2s cubic-bezier(0.4, 0, 0.2, 1) infinite; }
+    .animate-arrow-sw { animation: arrow-sw 2s cubic-bezier(0.4, 0, 0.2, 1) infinite; }
+    .animate-arrow-se { animation: arrow-se 2s cubic-bezier(0.4, 0, 0.2, 1) infinite; }
 
     @keyframes watermark-pulse {
-        0%, 100% { opacity: 0.05; transform: scale(0.95); }
-        50% { opacity: 0.15; transform: scale(1.05); }
+        0%, 100% { opacity: 0.1; transform: scale(0.95); }
+        50% { opacity: 0.3; transform: scale(1.05); }
     }
 
     .animate-watermark-pulse { animation: watermark-pulse 4s ease-in-out infinite; }
