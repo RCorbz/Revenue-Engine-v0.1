@@ -287,23 +287,23 @@
             {#if phase === 'front'}
                 <div in:fade class="w-full h-full border-2 border-white/5 rounded-3xl shadow-[0_0_0_100vmax_rgba(0,0,0,0.6)] relative overflow-hidden flex items-center justify-center">
                     <!-- PULSING WATERMARK -->
-                    <div class="text-6xl font-black text-white/10 uppercase tracking-[0.6em] animate-watermark-pulse pointer-events-none select-none z-10">Front</div>
+                    <div class="absolute text-6xl font-black text-white/10 uppercase tracking-[0.6em] animate-watermark-pulse pointer-events-none select-none z-0">Front</div>
 
                     <!-- DIAGONAL GUIDANCE ARROWS (GREEN) -->
-                    <!-- Top Left -->
-                    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-arrow-diag-tl">
+                    <!-- Top Left: Points Top-Left (-135deg) -->
+                    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-arrow-diag-tl z-10">
                         <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-green-500/80 -rotate-135" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7l10 10"/><path d="M17 7v10H7"/></svg>
                     </div>
-                    <!-- Top Right -->
-                    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-arrow-diag-tr">
+                    <!-- Top Right: Points Top-Right (-45deg) -->
+                    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-arrow-diag-tr z-10">
                         <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-green-500/80 -rotate-45" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7l10 10"/><path d="M17 7v10H7"/></svg>
                     </div>
-                    <!-- Bottom Left -->
-                    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-arrow-diag-bl">
+                    <!-- Bottom Left: Points Bottom-Left (135deg) -->
+                    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-arrow-diag-bl z-10">
                         <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-green-500/80 rotate-135" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7l10 10"/><path d="M17 7v10H7"/></svg>
                     </div>
-                    <!-- Bottom Right -->
-                    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-arrow-diag-br">
+                    <!-- Bottom Right: Points Bottom-Right (45deg) -->
+                    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-arrow-diag-br z-10">
                         <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-green-500/80 rotate-45" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7l10 10"/><path d="M17 7v10H7"/></svg>
                     </div>
                     
@@ -405,10 +405,10 @@
         animation: scan-y 2.5s infinite;
     }
 
-    @keyframes arrow-bounce-diag-tl { 0%, 100% { transform: translate(0, 0) rotate(-135deg) scale(0.8); opacity: 0; } 50% { transform: translate(-80px, -40px) rotate(-135deg) scale(1.2); opacity: 0.8; } }
-    @keyframes arrow-bounce-diag-tr { 0%, 100% { transform: translate(0, 0) rotate(-45deg) scale(0.8); opacity: 0; } 50% { transform: translate(80px, -40px) rotate(-45deg) scale(1.2); opacity: 0.8; } }
-    @keyframes arrow-bounce-diag-bl { 0%, 100% { transform: translate(0, 0) rotate(135deg) scale(0.8); opacity: 0; } 50% { transform: translate(-80px, 40px) rotate(135deg) scale(1.2); opacity: 0.8; } }
-    @keyframes arrow-bounce-diag-br { 0%, 100% { transform: translate(0, 0) rotate(45deg) scale(0.8); opacity: 0; } 50% { transform: translate(80px, 40px) rotate(45deg) scale(1.2); opacity: 0.8; } }
+    @keyframes arrow-bounce-diag-tl { 0%, 100% { transform: translate(-30px, -15px) rotate(-135deg) scale(0.8); opacity: 0; } 50% { transform: translate(-100px, -50px) rotate(-135deg) scale(1.1); opacity: 0.8; } }
+    @keyframes arrow-bounce-diag-tr { 0%, 100% { transform: translate(30px, -15px) rotate(-45deg) scale(0.8); opacity: 0; } 50% { transform: translate(100px, -50px) rotate(-45deg) scale(1.1); opacity: 0.8; } }
+    @keyframes arrow-bounce-diag-bl { 0%, 100% { transform: translate(-30px, 15px) rotate(135deg) scale(0.8); opacity: 0; } 50% { transform: translate(-100px, 50px) rotate(135deg) scale(1.1); opacity: 0.8; } }
+    @keyframes arrow-bounce-diag-br { 0%, 100% { transform: translate(30px, 15px) rotate(45deg) scale(0.8); opacity: 0; } 50% { transform: translate(100px, 50px) rotate(45deg) scale(1.1); opacity: 0.8; } }
 
     .animate-arrow-diag-tl { animation: arrow-bounce-diag-tl 2s ease-in-out infinite; }
     .animate-arrow-diag-tr { animation: arrow-bounce-diag-tr 2s ease-in-out infinite; }
