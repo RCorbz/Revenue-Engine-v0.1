@@ -55,10 +55,12 @@ export const POST: RequestHandler = async ({ request }) => {
 		// Strip potential metadata prefix
 		let base64Data = image.replace(/^data:image\/\w+;base64,/, '');
 
-        // --- PHASE -1: NEURAL-SIGNAL OPTIMIZATION (OpenCV CLAHE) ---
+        // Standardizing on the best available python executable
+        const pythonCmd = 'C:\\Users\\RCorbz\\AppData\\Local\\Programs\\Python\\Python311\\python.exe';
+        
         try {
             log('🔬 [PHASE -1] Optimizing Neural Signal (OpenCV)...');
-            const optProcess = spawnSync('python', ['scripts/optimize_id.py'], { 
+            const optProcess = spawnSync(pythonCmd, ['scripts/optimize_id.py'], { 
                 encoding: 'utf-8',
                 input: base64Data, // Send via stdin
                 maxBuffer: 10 * 1024 * 1024 
@@ -110,7 +112,7 @@ export const POST: RequestHandler = async ({ request }) => {
             log('🎯 [PHASE 0: BACK] Attempting Backend Barcode Bridge (pyzbar)...');
             try {
                 // Execute Python Bridge - Use stdin to handle large payloads
-                const pythonProcess = spawnSync('python', ['scripts/decode_barcode.py'], { 
+                const pythonProcess = spawnSync(pythonCmd, ['scripts/decode_barcode.py'], { 
                     encoding: 'utf-8',
                     input: base64Data, // Pass via stdin
                     maxBuffer: 10 * 1024 * 1024
