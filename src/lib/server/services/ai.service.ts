@@ -33,7 +33,7 @@ class AIService {
     async extractIdentity(rawExtracted: any, imageBase64?: string, sideHint: string = 'FRONT', forcePro: boolean = false) {
         try {
             const side = sideHint.toUpperCase();
-            let targetModelId = side === 'BACK' ? GEMINI_CONFIG.MODELS.PRO : (forcePro ? GEMINI_CONFIG.MODELS.PRO : GEMINI_CONFIG.MODELS.FLASH);
+            let targetModelId = forcePro ? GEMINI_CONFIG.MODELS.PRO : GEMINI_CONFIG.MODELS.FLASH;
             
             console.log(`🧠 [AIService] Extracting ${side} via ${targetModelId}... [ForcePro: ${forcePro}]`);
 

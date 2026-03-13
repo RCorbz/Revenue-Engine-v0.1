@@ -15,15 +15,22 @@ def optimize_id():
         if ',' in input_b64:
             input_b64 = input_b64.split(',')[1]
             
-        img_data = base64.b64decode(input_b64)
+        try:
+            img_data = base64.b64decode(input_b64)
+        except Exception:
+            # Handle possible padding issues
+            missing_padding = len(input_b64) % 4
+            if missing_padding:
+                input_b64 += '=' * (4 - missing_padding)
+            img_data = base64.b64decode(input_b64)
+
         nparr = np.frombuffer(img_data, np.uint8)
         img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
         
         if img is None:
-            return {"success": False, "error": "Could not decode image"}
+            return {"success": False, "error": "Could not decode image (OpenCV)"}
 
         # 1. CLAHE (Contrast Limited Adaptive Histogram Equalization)
-        # Labs color space is best for enhancing text contrast while preserving color
         lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
         l, a, b = cv2.split(lab)
         clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8,8))
@@ -49,8 +56,9 @@ def optimize_id():
         }
 
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        return {"success": False, "error": f"Optimization error: {str(e)}"}
 
 if __name__ == "__main__":
     result = optimize_id()
-    print(json.dumps(result))
+    sys.stdout.write(json.dumps(result))
+    sys.stdout.flush()

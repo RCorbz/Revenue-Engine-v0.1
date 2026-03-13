@@ -22,6 +22,12 @@
     let scanFrameId: number;
     let extractedData: any = {};
     let frontSideCaptureStart: number | null = null;
+    
+    // Performance Telemetry
+    let ts_screenInit: number | null = null;
+    let ts_frontCaptureTrigger: number | null = null;
+    let ts_frontResponse: number | null = null;
+    let ts_backScanStart: number | null = null;
 
     const rescanFront = () => {
         console.log('🔄 [SCANNER] User requested rescan of front.');
@@ -31,6 +37,7 @@
     };
 
     onMount(() => {
+        ts_screenInit = performance.now();
         console.log('⚡ [EDGE ENGINE] Initializing Enterprise Intake...');
         
         // EDGE DETECTOR INITIALIZATION
@@ -47,7 +54,9 @@
                 if (!isNeuralLocked) {
                     isNeuralLocked = true;
                     lockTimestamp = Date.now();
-                    if (navigator.vibrate) navigator.vibrate(50);
+                    if (navigator.vibrate) {
+                        try { navigator.vibrate(50); } catch (e) { /* Silent fail on blocked vibration */ }
+                    }
                 } else if (lockTimestamp && Date.now() - lockTimestamp > 750) {
                     console.log('🎯 [NEURAL LOCK] Auto-triggering capture (Confidence high)');
                     captureSide('front');
@@ -134,6 +143,10 @@
     async function captureSide(targetSide: 'front' | 'back') {
         if (targetSide === 'front') {
             frontSideCaptureStart = performance.now();
+            ts_frontCaptureTrigger = performance.now();
+            if (ts_screenInit) {
+                console.log(`⏱️ [PERF] Initiation to Front Capture: ${Math.round(ts_frontCaptureTrigger - ts_screenInit)}ms`);
+            }
         }
         console.log(`📸 [SCANNER] ${targetSide.toUpperCase()} capture initiated at: ${new Date().toISOString()}`);
         if (!video || !canvas) return;
@@ -175,6 +188,11 @@
             const result = await res.json();
             
             if (targetSide === 'front') {
+                ts_frontResponse = performance.now();
+                if (ts_frontCaptureTrigger) {
+                    console.log(`⏱️ [PERF] Front side AI extraction latency: ${Math.round(ts_frontResponse - ts_frontCaptureTrigger)}ms`);
+                }
+
                 if (result.success && result.data && (result.data.firstName || result.data.idNumber)) {
                     // PERSISTENCE GUARD: We must explicitly save all fields to the component state
                     extractedData = { 
@@ -192,6 +210,8 @@
                     phase = 'back';
                     status = "BACK SIDE: ALIGN OR CAPTURE";
                     startTime = Date.now();
+                    ts_backScanStart = performance.now();
+                    console.log(`⏱️ [PERF] Barcode scan window opened at T+${Math.round(ts_backScanStart - ts_screenInit!)}ms`);
                 } else {
                     status = "SCAN FAILED (DATA MISSING)";
                     console.warn('⚠️ [INTAKE] Front capture incomplete.');
@@ -290,7 +310,9 @@
     function handleResult(data: any, resultSource: string) {
         if (scanFrameId) cancelAnimationFrame(scanFrameId);
         stopStream();
-        if (navigator.vibrate) navigator.vibrate(200);
+        if (navigator.vibrate) {
+            try { navigator.vibrate(200); } catch (e) { /* Silent fail */ }
+        }
         status = resultSource === 'edge' ? "BARCODE DECODED" : (resultSource === 'cloud' ? "AI VERIFIED" : "SCAN COMPLETED");
         
         // Final Identity Payload Construction
@@ -301,7 +323,11 @@
         
         if (frontSideCaptureStart) {
             const totalDuration = Math.round(performance.now() - frontSideCaptureStart);
-            console.log(`⏱️ [PERF] front side capture click to review scan present: ${totalDuration}ms`);
+            console.log(`⏱️ [TOTAL] front side capture click to review scan present: ${totalDuration}ms`);
+        }
+        
+        if (ts_backScanStart) {
+            console.log(`⏱️ [PERF] Barcode start to present review screen: ${Math.round(performance.now() - ts_backScanStart)}ms`);
         }
 
         dispatch('complete', finalPayload);

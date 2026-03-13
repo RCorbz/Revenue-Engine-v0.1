@@ -73,7 +73,7 @@ export const POST: RequestHandler = async ({ request }) => {
                     log(`⚠️ [PHASE -1] Post-processing info: ${optResult.error || 'No change'}`);
                 }
             } else if (optProcess.error || optProcess.status !== 0) {
-                log(`⚠️ [PHASE -1] Process failed. Stderr: ${optProcess.stderr?.substring(0, 100)}`);
+                log(`⚠️ [PHASE -1] Process failed. Status: ${optProcess.status}. Stderr: ${optProcess.stderr}`);
             }
         } catch (optErr: any) {
             log(`⚠️ [PHASE -1] Bridge crash: ${optErr.message}`);
@@ -109,8 +109,12 @@ export const POST: RequestHandler = async ({ request }) => {
         if (side.toLowerCase() === 'back') {
             log('🎯 [PHASE 0: BACK] Attempting Backend Barcode Bridge (pyzbar)...');
             try {
-                // Execute Python Bridge
-                const pythonProcess = spawnSync('python', ['scripts/decode_barcode.py', base64Data], { encoding: 'utf-8' });
+                // Execute Python Bridge - Use stdin to handle large payloads
+                const pythonProcess = spawnSync('python', ['scripts/decode_barcode.py'], { 
+                    encoding: 'utf-8',
+                    input: base64Data, // Pass via stdin
+                    maxBuffer: 10 * 1024 * 1024
+                });
                 
                 if (pythonProcess.status === 0 && pythonProcess.stdout) {
                     const result = JSON.parse(pythonProcess.stdout);
@@ -147,7 +151,7 @@ export const POST: RequestHandler = async ({ request }) => {
                         log(`⚠️ [PHASE 0] ${result.error || 'No barcode found in image'}`);
                     }
                 } else {
-                    log(`⚠️ [PHASE 0] Bridge execution failed or timed out.`);
+                    log(`⚠️ [PHASE 0] Bridge execution failed. Status: ${pythonProcess.status}. Stderr: ${pythonProcess.stderr}`);
                 }
             } catch (bridgeErr: any) {
                 log(`⚠️ [PHASE 0] Bridge error: ${bridgeErr.message}`);
