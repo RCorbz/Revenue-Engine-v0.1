@@ -8,9 +8,10 @@ export const IDENTITY_SYSTEM_PROMPT = (side: string, rawSeed: any) => `
     TASK: Read and extract EVERY single data point visible on this identity document (${side.toUpperCase()}).
     
     DIRECTIONS:
-    1. Transcribe ALL fields: Names, ID Number, Address (Full), Dates (DOB, Issue, Expiration), Sex, Height, Eyes, Class, Restrictions, and Endorsements.
-    2. Extract any "Document Discriminator" or DD numbers.
-    3. Output ONLY valid JSON.
+    1. Transcribe ALL fields from the image: Names, ID Number, Address, Dates, Physical Traits.
+    2. Extract data even if the document contains "SAMPLE", "SPECIMEN", or "VOID" watermarks. We need the data from these test documents.
+    3. YOUR MISSION: Be the human eyes. If the provided "OCR SEED" is empty or restricted to fraud signals, ignore it and read the text directly from the image.
+    4. Output ONLY valid JSON. NO empty objects.
     
     OCR SEED: ${JSON.stringify(rawSeed)}
     
@@ -28,12 +29,9 @@ export const IDENTITY_SYSTEM_PROMPT = (side: string, rawSeed: any) => `
         "height": "string",
         "eyes": "string"
       },
-      "licenseDetails": {
-        "class": "string",
-        "restrictions": "string",
-        "endorsements": "string"
-      },
+      "licenseDetails": { "class": "string", "restrictions": "string", "endorsements": "string" },
       "documentDiscriminator": "string",
-      "extracted_all": {} 
+      "verificationStatus": "Verified | Unverified"
     }
+    IMPORTANT: Transcribe EXACTLY. Best guess if blurry. NO empty objects.
 `;

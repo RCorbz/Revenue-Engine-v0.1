@@ -16,6 +16,14 @@
     let startTime: number | null = null;
     let scanFrameId: number;
     let extractedData: any = {};
+    let frontSideCaptureStart: number | null = null;
+
+    const rescanFront = () => {
+        console.log('🔄 [SCANNER] User requested rescan of front.');
+        phase = 'front';
+        extractedData = null;
+        status = "POSITION FRONT OF ID";
+    };
 
     onMount(() => {
         console.log('⚡ [EDGE ENGINE] Initializing Enterprise Intake...');
@@ -93,31 +101,41 @@
         }
     }
 
-    async function captureFront() {
+    async function captureSide(targetSide: 'front' | 'back') {
+        if (targetSide === 'front') {
+            frontSideCaptureStart = performance.now();
+        }
+        console.log(`📸 [SCANNER] ${targetSide.toUpperCase()} capture initiated at: ${new Date().toISOString()}`);
         if (!video || !canvas) return;
         const ctx = canvas.getContext('2d', { willReadFrequently: true });
         if (!ctx) return;
 
-        console.log('📸 [PHASE 1: LOCAL CAPTURE] Taking High-Res Snap...');
-
-        // Capture high-res frame for OCR
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        ctx.drawImage(video, 0, 0);
-        const base64 = canvas.toDataURL('image/jpeg', 0.95);
-        const imgSizeKB = Math.round(base64.length * 0.75 / 1024);
-        console.log(`📸 [PHASE 1: SIZE] Front Frame: ${imgSizeKB}KB`);
-        console.log('🚀 [PHASE 2: CLOUD UPLOAD] Sending Front Frame to DocAI Neural Pass...');
+        // SMART RESIZE: 1280px (720p equivalent) for optimal OCR/Neural balance
+        const targetWidth = 1280;
+        const scale = targetWidth / video.videoWidth;
+        canvas.width = targetWidth;
+        canvas.height = video.videoHeight * scale;
         
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const base64 = canvas.toDataURL('image/jpeg', 0.90);
+        
+        phase = 'extracting';
+        status = "PREPARING IMAGE...";
+        
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); 
+
         try {
             const res = await fetch('/intake/extract', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                signal: controller.signal,
                 body: JSON.stringify({ 
                     image: base64,
-                    side: 'front' 
+                    side: targetSide 
                 })
             });
+            clearTimeout(timeoutId);
             
             if (!res.ok) {
                 const errData = await res.json();
@@ -126,29 +144,65 @@
             
             const result = await res.json();
             
-            if (result.success && result.data) {
-                extractedData = { ...result.data }; // Clone to ensure persistence
-                console.log(`🧠 [PHASE 3: FRONT GROUNDING] Saved Persistent Front Data:`, extractedData);
-                
-                // AUTO-ADVANCE TO BACK SIDE
-                phase = 'back';
-                status = "FLIP ID: SCAN BARCODE";
-                startTime = Date.now();
-                
-                // Reset canvas for high-performance barcode decoding
-                canvas.width = 640;
-                canvas.height = 200;
+            if (targetSide === 'front') {
+                if (result.success && result.data && (result.data.firstName || result.data.idNumber)) {
+                    // PERSISTENCE GUARD: We must explicitly save all fields to the component state
+                    extractedData = { 
+                        ...extractedData, 
+                        ...result.data,
+                        firstName: result.data.firstName || extractedData.firstName,
+                        lastName: result.data.lastName || extractedData.lastName,
+                        idNumber: result.data.idNumber || extractedData.idNumber,
+                        dob: result.data.dob || extractedData.dob,
+                        confidence: result.confidence_score || result.data.confidence || 0.5,
+                        verificationStatus: result.data.verificationStatus || 'Unverified'
+                    };
+                    console.log(`🧠 [FRONT GROUNDING] Saved Persistent Front Data (Conf: ${extractedData.confidence}):`, extractedData);
+                    
+                    phase = 'back';
+                    status = "BACK SIDE: ALIGN OR CAPTURE";
+                    startTime = Date.now();
+                } else {
+                    status = "SCAN FAILED (DATA MISSING)";
+                    console.warn('⚠️ [INTAKE] Front capture incomplete.');
+                    phase = 'front';
+                }
             } else {
-                status = "SCAN FAILED (SIGNAL WEAK)";
-                console.warn('⚠️ [INTAKE] Front capture empty. Resetting...');
-                phase = 'front';
+                // BACK SIDE PROCESSING: Non-Destructive Merge (Front-Side Primacy)
+                if (result.success && result.data) {
+                    const mergedData = { 
+                        ...extractedData,
+                        // Only take fields from back that are missing in front
+                        firstName: extractedData.firstName || result.data.firstName,
+                        lastName: extractedData.lastName || result.data.lastName,
+                        idNumber: extractedData.idNumber || result.data.idNumber,
+                        dob: extractedData.dob || result.data.dob,
+                        address: extractedData.address || result.data.address
+                    };
+                    
+                    // Deep merge for nested objects if needed
+                    if (result.data.physical) {
+                        mergedData.physical = { ...extractedData.physical, ...result.data.physical };
+                    }
+                    if (result.data.licenseDetails) {
+                        mergedData.licenseDetails = { ...extractedData.licenseDetails, ...result.data.licenseDetails };
+                    }
+
+                    console.log(`🧠 [BACK GROUNDING] Composite Record:`, mergedData);
+                    handleResult(mergedData, 'cloud');
+                } else {
+                    status = "PROCESS FAILED (TRY AGAIN)";
+                    phase = 'back';
+                }
             }
-        } catch (e) {
-            status = "NETWORK ERROR (500)";
-            console.error('❌ [FRONT CLOUD] Terminal error:', e);
-            phase = 'front';
+        } catch (e: any) {
+            clearTimeout(timeoutId);
+            status = e.name === 'AbortError' ? "GATEWAY TIMEOUT" : "NETWORK ERROR (500)";
+            console.error(`❌ [${targetSide.toUpperCase()} CLOUD] error:`, e);
+            phase = targetSide;
         }
     }
+
 
     function processFrame() {
         if (!video || video.paused || phase === 'extracting') {
@@ -160,8 +214,8 @@
             const ctx = canvas.getContext('2d', { willReadFrequently: true });
             if (!ctx) return;
 
-            // "Sweet Spot" Targeted Barcode Capture
-            const scanHeight = video.videoHeight * 0.3;
+            // "Sweet Spot" Targeted Barcode Capture - Increased area (60%)
+            const scanHeight = video.videoHeight * 0.6;
             const scanTop = (video.videoHeight - scanHeight) / 2;
             
             ctx.drawImage(video, 0, scanTop, video.videoWidth, scanHeight, 0, 0, canvas.width, canvas.height);
@@ -175,19 +229,31 @@
 
             if (startTime) {
                 const elapsed = Date.now() - startTime;
-                status = elapsed > 4000 ? "MOVE BARCODE CLOSER" : "ALIGN BARCODE";
+                status = elapsed > 5000 ? "TAP BUTTON IF SCAN FAILS" : "ALIGN BARCODE";
             }
         }
 
         scanFrameId = requestAnimationFrame(processFrame);
     }
 
-    function handleResult(data: any, source: string) {
+    function handleResult(data: any, resultSource: string) {
         if (scanFrameId) cancelAnimationFrame(scanFrameId);
         stopStream();
         if (navigator.vibrate) navigator.vibrate(200);
-        status = source === 'edge' ? "BARCODE DECODED" : "AI VERIFIED";
-        dispatch('complete', { ...data, source });
+        status = resultSource === 'edge' ? "BARCODE DECODED" : (resultSource === 'cloud' ? "AI VERIFIED" : "SCAN COMPLETED");
+        
+        // Final Identity Payload Construction
+        const finalPayload = { 
+            ...data, 
+            source: data.source || resultSource // Prefer internal source if already set (e.g. 'timeout')
+        };
+        
+        if (frontSideCaptureStart) {
+            const totalDuration = Math.round(performance.now() - frontSideCaptureStart);
+            console.log(`⏱️ [PERF] front side capture click to review scan present: ${totalDuration}ms`);
+        }
+
+        dispatch('complete', finalPayload);
     }
 </script>
 
@@ -197,7 +263,7 @@
         {#if phase === 'front'}
             <div in:fade class="px-6 py-2 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-xl flex items-center gap-3">
                 <span class="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
-                <p class="text-[10px] text-white font-black uppercase tracking-[0.2em] whitespace-nowrap">Front of ID: Align in Box</p>
+                <p class="text-[10px] text-white font-black uppercase tracking-[0.1em] whitespace-nowrap">FRONT: Align Corner of ID in box below</p>
             </div>
         {:else if phase === 'back'}
             <div in:fade class="px-6 py-2 rounded-2xl bg-green-500/10 border border-green-500/20 backdrop-blur-xl flex items-center gap-3">
@@ -213,17 +279,36 @@
     </div>
 
     <!-- 2. VIEWFINDER AREA -->
-    <div class="relative w-full aspect-video rounded-[2.5rem] overflow-hidden border-4 {isFailover ? 'border-blue-500' : (phase === 'front' ? 'border-white/20' : 'border-slate-800')} bg-black ring-1 ring-white/10 shadow-[0_40px_80px_-20px_rgba(0,0,0,0.9)] transition-all duration-500">
-        <video bind:this={video} autoplay playsinline class="w-full h-full object-cover {phase === 'back' && !isFailover ? 'grayscale contrast-125 saturate-0' : ''}"></video>
+    <div class="relative w-full aspect-video rounded-[2.5rem] overflow-hidden border-4 {phase === 'back' ? 'border-green-500/30' : (phase === 'front' ? 'border-white/20' : 'border-slate-800')} bg-black ring-1 ring-white/10 shadow-[0_40px_80px_-20px_rgba(0,0,0,0.9)] transition-all duration-500">
+        <video bind:this={video} autoplay playsinline class="w-full h-full object-cover {phase === 'back' ? 'grayscale contrast-125 saturate-0' : ''}"></video>
         
         <!-- Viewfinder Overlays / Guides -->
         <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none p-10">
             {#if phase === 'front'}
-                <div in:fade class="w-full h-full border-2 border-white/30 rounded-3xl shadow-[0_0_0_100vmax_rgba(0,0,0,0.6)] relative">
-                    <div class="absolute -top-1 -left-1 w-12 h-12 border-t-4 border-l-4 border-white/60 rounded-tl-xl"></div>
-                    <div class="absolute -top-1 -right-1 w-12 h-12 border-t-4 border-r-4 border-white/60 rounded-tr-xl"></div>
-                    <div class="absolute -bottom-1 -left-1 w-12 h-12 border-b-4 border-l-4 border-white/60 rounded-bl-xl"></div>
-                    <div class="absolute -bottom-1 -right-1 w-12 h-12 border-b-4 border-r-4 border-white/60 rounded-br-xl"></div>
+                <div in:fade class="w-full h-full border-2 border-white/5 rounded-3xl shadow-[0_0_0_100vmax_rgba(0,0,0,0.6)] relative overflow-hidden flex items-center justify-center">
+                    <!-- PULSING WATERMARK -->
+                    <div class="text-6xl font-black text-white/10 uppercase tracking-[0.6em] animate-watermark-pulse pointer-events-none select-none z-10">Front</div>
+
+                    <!-- DIAGONAL GUIDANCE ARROWS (GREEN) -->
+                    <!-- Top Left -->
+                    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-arrow-diag-tl">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-green-500/80 -rotate-135" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7l10 10"/><path d="M17 7v10H7"/></svg>
+                    </div>
+                    <!-- Top Right -->
+                    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-arrow-diag-tr">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-green-500/80 -rotate-45" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7l10 10"/><path d="M17 7v10H7"/></svg>
+                    </div>
+                    <!-- Bottom Left -->
+                    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-arrow-diag-bl">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-green-500/80 rotate-135" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7l10 10"/><path d="M17 7v10H7"/></svg>
+                    </div>
+                    <!-- Bottom Right -->
+                    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-arrow-diag-br">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-green-500/80 rotate-45" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7l10 10"/><path d="M17 7v10H7"/></svg>
+                    </div>
+                    
+                    <!-- Guidance Scanline -->
+                    <div class="absolute inset-0 bg-green-500/5 opacity-10"></div>
                 </div>
             {:else if phase === 'back'}
                 <div in:fade class="w-full h-1/2 border-2 border-dashed border-green-500/40 rounded-xl shadow-[0_0_0_100vmax_rgba(0,0,0,0.6)] relative overflow-hidden">
@@ -248,7 +333,7 @@
             <div in:scale={{ duration: 400, start: 0.8 }}>
                 <button 
                     type="button" 
-                    on:click={captureFront}
+                    on:click={() => captureSide('front')}
                     aria-label="Capture Identity Front"
                     class="h-28 w-28 rounded-full border-[10px] border-white/10 bg-white/5 p-2 flex items-center justify-center hover:bg-white/10 transition-all active:scale-95 shadow-[0_0_60px_-15px_rgba(255,255,255,0.1)] group"
                 >
@@ -257,16 +342,41 @@
                     </div>
                 </button>
             </div>
-            <p class="text-[10px] text-slate-500 font-black uppercase tracking-[0.2em] text-center">Center Document & Tap to Capture</p>
+            <p class="text-[10px] text-slate-500 font-black uppercase tracking-[0.2em] text-center">Center Front & Tap to Capture</p>
         {:else if phase === 'back'}
-            <div class="text-center space-y-3 py-6">
-                <div class="flex justify-center gap-1">
-                    {#each Array(3) as _}
-                        <div class="w-1 h-3 bg-green-500/20 rounded-full"></div>
-                    {/each}
+            <div class="text-center space-y-8 w-full">
+                <div class="flex flex-col items-center gap-6">
+                    <!-- High-Impact Capture Button for Back Side -->
+                    <button 
+                        type="button" 
+                        on:click={() => captureSide('back')}
+                        class="h-24 w-24 rounded-full border-[8px] border-green-500/20 bg-green-500/5 p-1.5 flex items-center justify-center hover:bg-green-500/10 transition-all active:scale-95 shadow-[0_20px_40px_-10px_rgba(34,197,94,0.3)] group"
+                    >
+                        <div class="h-full w-full bg-green-500 rounded-full shadow-xl group-hover:scale-105 transition-transform flex items-center justify-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-black" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                        </div>
+                    </button>
+                    
+                    <div class="grid grid-cols-2 gap-4 w-full px-4">
+                        <button 
+                            on:click={rescanFront}
+                            class="py-4 bg-white/5 border border-white/10 text-white/40 rounded-2xl font-bold text-[9px] uppercase tracking-[0.2em] hover:bg-white/10 transition-colors"
+                        >
+                            Retake Front
+                        </button>
+
+                        <button 
+                            on:click={() => handleResult({ ...extractedData, source: 'cloud-recovery' }, 'cloud')}
+                            class="py-4 bg-white/5 border border-white/10 text-white/40 rounded-2xl font-bold text-[9px] uppercase tracking-[0.2em] hover:bg-white/10 transition-colors"
+                        >
+                            Skip Back
+                        </button>
+                    </div>
                 </div>
-                <p class="text-xs text-green-400 font-black uppercase tracking-widest animate-pulse">Edge Decoder Running</p>
-                <p class="text-[10px] text-slate-600 uppercase tracking-widest">Targeting PDF417 Bounding Zone</p>
+                <p class="text-[9px] text-slate-500 uppercase tracking-[0.2em] font-medium leading-relaxed">
+                    Auto-scanning Barcode... <br/> 
+                    Or tap Green to capture manually
+                </p>
             </div>
         {:else if phase === 'extracting'}
              <div class="py-12 flex flex-col items-center gap-6">
@@ -294,4 +404,21 @@
     .animate-scan-y {
         animation: scan-y 2.5s infinite;
     }
+
+    @keyframes arrow-bounce-diag-tl { 0%, 100% { transform: translate(0, 0) rotate(-135deg) scale(0.8); opacity: 0; } 50% { transform: translate(-80px, -40px) rotate(-135deg) scale(1.2); opacity: 0.8; } }
+    @keyframes arrow-bounce-diag-tr { 0%, 100% { transform: translate(0, 0) rotate(-45deg) scale(0.8); opacity: 0; } 50% { transform: translate(80px, -40px) rotate(-45deg) scale(1.2); opacity: 0.8; } }
+    @keyframes arrow-bounce-diag-bl { 0%, 100% { transform: translate(0, 0) rotate(135deg) scale(0.8); opacity: 0; } 50% { transform: translate(-80px, 40px) rotate(135deg) scale(1.2); opacity: 0.8; } }
+    @keyframes arrow-bounce-diag-br { 0%, 100% { transform: translate(0, 0) rotate(45deg) scale(0.8); opacity: 0; } 50% { transform: translate(80px, 40px) rotate(45deg) scale(1.2); opacity: 0.8; } }
+
+    .animate-arrow-diag-tl { animation: arrow-bounce-diag-tl 2s ease-in-out infinite; }
+    .animate-arrow-diag-tr { animation: arrow-bounce-diag-tr 2s ease-in-out infinite; }
+    .animate-arrow-diag-bl { animation: arrow-bounce-diag-bl 2s ease-in-out infinite; }
+    .animate-arrow-diag-br { animation: arrow-bounce-diag-br 2s ease-in-out infinite; }
+
+    @keyframes watermark-pulse {
+        0%, 100% { opacity: 0.05; transform: scale(0.95); }
+        50% { opacity: 0.15; transform: scale(1.05); }
+    }
+
+    .animate-watermark-pulse { animation: watermark-pulse 4s ease-in-out infinite; }
 </style>

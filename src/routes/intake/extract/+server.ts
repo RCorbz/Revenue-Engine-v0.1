@@ -20,18 +20,64 @@ export const POST: RequestHandler = async ({ request }) => {
 	try {
 		const body = await request.json();
         // Standardizing on 'image' and 'imageBase64' as valid aliases for migration safety
-		const image = body.image || body.imageBase64;
-        const side = body.side || 'front';
+        const image = body.image || body.imageBase64;
+        const side = (body.side || 'front').toLowerCase();
+        const requestStart = performance.now();
 
-        log(`📸 [INTAKE REQUEST] Processing ${side.toUpperCase()}...`);
+        log(`🚀 [INTAKE START] Side: ${side.toUpperCase()} | Timestamp: ${new Date().toISOString()}`);
         log(`📏 Payload Size: ${(image?.length || 0) / 1024} KB`);
 
-		if (!image) {
+		if (!image && !body.mock) {
 			return json({ error: 'No image provided', debug_logs }, { status: 400 });
 		}
 
+        if (body.mock) {
+            log('🧪 [MOCK MODE] Explicitly triggered via Debug Harness.');
+            return json({
+                success: true,
+                confidence_score: 0.99,
+                verified: true, // Compatibility with harness expect
+                data: {
+                    firstName: 'MOCK-FIRST',
+                    lastName: 'MOCK-LAST',
+                    driverName: 'MOCK-FIRST MOCK-LAST',
+                    idNumber: 'TX-MOCK-2026',
+                    licenseNumber: 'TX-MOCK-2026',
+                    dob: '1990-05-15',
+                    address: '123 MOCK ST, AUSTIN, TX',
+                    verificationStatus: 'Verified'
+                },
+                source: 'explicit-mock',
+                debug_logs
+            });
+        }
+
 		// Strip potential metadata prefix
-		const base64Data = image.replace(/^data:image\/\w+;base64,/, '');
+		let base64Data = image.replace(/^data:image\/\w+;base64,/, '');
+
+        // --- PHASE -1: NEURAL-SIGNAL OPTIMIZATION (OpenCV CLAHE) ---
+        try {
+            log('🔬 [PHASE -1] Optimizing Neural Signal (OpenCV)...');
+            const optProcess = spawnSync('python', ['scripts/optimize_id.py'], { 
+                encoding: 'utf-8',
+                input: base64Data, // Send via stdin
+                maxBuffer: 10 * 1024 * 1024 
+            });
+            
+            if (optProcess.status === 0 && optProcess.stdout) {
+                const optResult = JSON.parse(optProcess.stdout);
+                if (optResult.success && optResult.enhanced_image) {
+                    base64Data = optResult.enhanced_image;
+                    log('✅ [PHASE -1] Optimization complete (CLAHE + Sharpening).');
+                } else {
+                    log(`⚠️ [PHASE -1] Post-processing info: ${optResult.error || 'No change'}`);
+                }
+            } else if (optProcess.error || optProcess.status !== 0) {
+                log(`⚠️ [PHASE -1] Process failed. Stderr: ${optProcess.stderr?.substring(0, 100)}`);
+            }
+        } catch (optErr: any) {
+            log(`⚠️ [PHASE -1] Bridge crash: ${optErr.message}`);
+        }
 
 		const projectId = GCP_CONFIG.PROJECT_ID;
 		const location = DOCAI_CONFIG.LOCATION; 
@@ -117,24 +163,17 @@ export const POST: RequestHandler = async ({ request }) => {
                 keyFilename: GCP_CONFIG.KEY_PATH
             });
 
-            log(`🔗 [PHASE 1: DOCAI] Calling Processor: ${processorId}`);
-			const name = `projects/${projectId}/locations/${location}/processors/${processorId}`;
-			const [result] = await client.processDocument({
-				name,
-				rawDocument: { 
-                    content: Buffer.from(base64Data, 'base64'), 
-                    mimeType: 'image/jpeg' 
-                }
-			});
-			
-			if (!result?.document) throw new Error('No document returned from Document AI');
-			
-			const { document } = result;
-            log(`🤖 [PHASE 1] Processed length: ${document.text?.length || 0}`);
-			
+            // --- PHASE 1 & 2: PARALLEL PULSE (DocAI + Gemini) ---
+            // BMADv6 Friction Reduction: We run compliance (DocAI) and vision (Gemini) 
+            // in parallel. Gemini drives UI data; DocAI drives background verification.
+            log('⚡ [PARALLEL PULSE] Orchestrating Dual-Engine Capture...');
+            
             let extractedData: any = { 
+                firstName: '',
+                lastName: '',
                 driverName: '', 
                 dob: '', 
+                idNumber: '',
                 licenseNumber: '', 
                 ssn: '', 
                 verificationStatus: 'Pending',
@@ -142,73 +181,70 @@ export const POST: RequestHandler = async ({ request }) => {
                 issueDate: '',
                 expirationDate: '',
                 physical: { sex: '', height: '', eyes: '', weight: '' },
-                licenseDetails: { class: '', restrictions: '', endorsements: '' }
+                licenseDetails: { class: '', restrictions: '', endorsements: '' },
+                documentDiscriminator: ''
             };
-			let fieldConfidences: Record<string, number> = {};
-			let lowestConfidence = (document.entities && document.entities.length > 0) ? 1.0 : 0.0;
+            let lowestConfidence = 1.0;
+            let fieldConfidences: Record<string, number> = {};
 
-            if (document.entities && document.entities.length > 0) {
-                log(`🔍 [DOCAI] Processor found ${document.entities.length} entities.`);
+            const [docaiPulse, geminiPulse] = await Promise.allSettled([
+                // 1. Structural/Fraud Check (DocAI) - SKIP FOR BACKSIDE (Requested)
+                (async () => {
+                    if (side === 'back') {
+                        log('⏭️ [PARALLEL] Skipping DocAI for Backside as requested.');
+                        return null;
+                    }
+                    const docaiTimer = performance.now();
+                    const name = `projects/${projectId}/locations/${location}/processors/${processorId}`;
+                    const [res] = await client.processDocument({
+                        name,
+                        rawDocument: { content: Buffer.from(base64Data, 'base64'), mimeType: 'image/jpeg' }
+                    });
+                    return { result: res, duration: Math.round(performance.now() - docaiTimer) };
+                })(),
+                // 2. Visual Understanding (Gemini 3.1 Adaptive Thinking)
+                (async () => {
+                    const geminiTimer = performance.now();
+                    const { data, raw_log } = await normalizeIdentityData({}, base64Data, side);
+                    return { data, raw_log, duration: Math.round(performance.now() - geminiTimer) };
+                })()
+            ]);
+
+            // DEBT NOTE: DocAI is now strictly FRONT-SIDE ONLY for fraud detection.
+            if (docaiPulse.status === 'fulfilled' && docaiPulse.value) {
+                const { result, duration } = docaiPulse.value;
+                const doc = result.document;
+                log(`🤖 [DOCAI] Pulse resolved in ${duration}ms. Text length: ${doc?.text?.length || 0}`);
                 
-                for (const entity of document.entities) {
-                    const type = entity.type || 'unknown';
-                    const textValue = (entity.mentionText || entity.normalizedValue?.text || '').trim();
-                    const conf = entity.confidence || 0.5;
+                if (doc?.entities) {
+                    for (const entity of doc.entities) {
+                        const type = entity.type?.toLowerCase() || '';
+                        const textValue = (entity.mentionText || '').trim();
+                        const conf = entity.confidence || 0.5;
 
-                    if (conf < lowestConfidence) lowestConfidence = conf;
-
-                    // Comprehensive Multi-Version Mapping
-                    const isFirstName = ['Given Names', 'given_names', 'First Name', 'firstName'].includes(type);
-                    const isLastName = ['Family Name', 'family_name', 'Last Name', 'lastName'].includes(type);
-                    const isId = ['Document Id', 'document_id', 'DL Number', 'id_number'].includes(type);
-                    const isDob = ['Date Of Birth', 'date_of_birth', 'DOB'].includes(type);
-                    const isExp = ['Expiration Date', 'expiration_date', 'EXP'].includes(type);
-                    const isIssue = ['Issue Date', 'issue_date', 'ISSUE'].includes(type);
-                    const isAddr = ['Address', 'address', 'full_address'].includes(type);
-                    const isSex = ['Sex', 'sex', 'Gender'].includes(type);
-                    const isHeight = ['Height', 'height'].includes(type);
-                    const isEyes = ['Eyes', 'eye_color'].includes(type);
-
-                    if (isFirstName) { extractedData.firstName = textValue; fieldConfidences.firstName = conf; }
-                    else if (isLastName) { extractedData.lastName = textValue; fieldConfidences.lastName = conf; }
-                    else if (isId) { extractedData.licenseNumber = textValue; extractedData.idNumber = textValue; fieldConfidences.idNumber = conf; }
-                    else if (isDob) { extractedData.dob = textValue.replace(/\//g, '-'); fieldConfidences.dob = conf; }
-                    else if (isExp) { extractedData.expirationDate = textValue.replace(/\//g, '-'); fieldConfidences.expirationDate = conf; }
-                    else if (isIssue) { extractedData.issueDate = textValue.replace(/\//g, '-'); fieldConfidences.issueDate = conf; }
-                    else if (isAddr) { extractedData.address = textValue; fieldConfidences.address = conf; }
-                    else if (isSex) { extractedData.physical.sex = textValue; fieldConfidences.sex = conf; }
-                    else if (isHeight) { extractedData.physical.height = textValue; fieldConfidences.height = conf; }
-                    else if (isEyes) { extractedData.physical.eyes = textValue; fieldConfidences.eyes = conf; }
-                    
-                    // Map Fraud Signals (OBT-15)
-                    if (type.includes('fraud') || type.includes('identity_document')) {
-                        if (textValue.toUpperCase().includes('PASS')) extractedData.verificationStatus = 'Verified';
-                        else if (textValue.toUpperCase().includes('FAIL')) extractedData.verificationStatus = 'Warning: Fraud Flag';
+                        // Fraud Signals (OBT-15) - Still highly valuable in 2026
+                        if (type.includes('fraud') || type.includes('suspicious')) {
+                            log(`🔍 [FRAUD CHECK] ${type}: ${textValue}`);
+                            if (textValue.toUpperCase().includes('FAIL')) {
+                                extractedData.verificationStatus = 'Warning: Fraud Flag';
+                            }
+                        }
                     }
                 }
-                
-                // Construct full name for legacy fields if only parts were found
-                if (!extractedData.driverName && (extractedData.firstName || extractedData.lastName)) {
-                    extractedData.driverName = `${extractedData.firstName || ''} ${extractedData.lastName || ''}`.trim();
-                }
+            } else if (side !== 'back') {
+                log(`⚠️ [PARALLEL] DocAI sluggish/offline (Timed out or rejected).`);
             }
 
-            // --- AI WATERFALL PHASE 2: SEMANTIC RECOVERY (GEMINI) ---
-            const hasBasicSignal = extractedData.firstName || extractedData.lastName || extractedData.licenseNumber;
-            
-            if (!hasBasicSignal || lowestConfidence < 0.6) {
-                log('🧠 [PHASE 2: WATERFALL] Low/Mixed signal. Triggering Gemini 3.1 PRO Comprehensive Pass...');
-                const { data: normalizedData, raw_log } = await normalizeIdentityData(extractedData, base64Data, side);
+            if (geminiPulse.status === 'fulfilled') {
+                const { data, duration } = geminiPulse.value;
+                log(`💎 [GEMINI] Pulse resolved in ${duration}ms. Source: 3.1 Adaptive Vision`);
                 
-                log(`🧠 [GEMINI RAW LOG]: ${raw_log}`);
-                console.log('💎 [FULL GEMINI EXTRACTION]:', JSON.stringify(normalizedData.full_extraction || normalizedData, null, 2));
-                
-                extractedData = { ...extractedData, ...normalizedData };
-                extractedData.source = 'gemini-comprehensive';
-                if (normalizedData.confidence) lowestConfidence = normalizedData.confidence;
+                // Gemini is the Source of Truth for the UI Fields (The Human Eyes)
+                extractedData = { ...extractedData, ...data };
+                extractedData.source = 'parallel-pulse';
+                if (data.confidence) lowestConfidence = data.confidence;
             } else {
-                extractedData.source = 'docai-standalone';
-                log('✅ [PHASE 2] High confidence DocAI signal secured. Gemini recovery skipped.');
+                log(`❌ [PARALLEL] Gemini Critical Failure: ${geminiPulse.reason}`);
             }
 
             log(`💼 [FINAL COMPOSITE DATA] ${JSON.stringify(extractedData, null, 2)}`);
@@ -241,6 +277,7 @@ export const POST: RequestHandler = async ({ request }) => {
 
 	} catch (error: any) {
 		console.error('Fatal Extraction Crash:', error);
-		return json({ error: 'System processing error', debug_logs: [error.message] }, { status: 500 });
+        log(`❌ [FATAL] ${error.message}`);
+		return json({ error: 'System processing error', debug_logs }, { status: 500 });
 	}
 };

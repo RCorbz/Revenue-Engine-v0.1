@@ -40,10 +40,10 @@ const envSchema = z.object({
     DOCAI_LOCATION: z.string().default('us'),
     DOCAI_PROCESSOR_ID: z.string().default('99902dfde23907ec'),
 
-    // Gemini
-    GEMINI_PRO_MODEL: z.string().default('gemini-3.1-pro-preview'),
-    GEMINI_FLASH_MODEL: z.string().default('gemini-3.1-flash-lite-preview'),
-    GEMINI_FLASH_LITE_MODEL: z.string().default('gemini-3-flash-preview'),
+    // Gemini (Production-Grade Velocity)
+    GEMINI_PRO_MODEL: z.string().default('gemini-1.5-pro-002'),
+    GEMINI_FLASH_MODEL: z.string().default('gemini-1.5-flash-002'),
+    GEMINI_FLASH_LITE_MODEL: z.string().default('gemini-1.5-flash-8b'),
 
     // Business
     AOV_TARGET: z.coerce.number().default(125),

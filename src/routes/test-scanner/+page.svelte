@@ -9,17 +9,10 @@
 
 	function handleComplete(event: CustomEvent) {
 		const data = event.detail;
-		console.log('📦 [INTAKE] Raw Data Received:', data);
-
-		// Uncertainty Routing: Force review if Cloud OCR confidence < 90%
-		if (data.source === 'cloud' && (data.confidence || 0) < 0.9) {
-			console.warn(`⚠️ [ROUTING] Low Confidence (${data.confidence}). Routing to ScanReview.`);
-			scanData = data;
-			isReviewing = true;
-		} else {
-			scanData = data;
-			isReviewing = false;
-		}
+		// BMADv6 Guardrail: ALWAYS route to High Density Review for user verification
+		console.log(`⚠️ [ROUTING] Grounding Data. Forcing High Density Review Screen.`);
+		scanData = data;
+		isReviewing = true;
 	}
 
 	function handleVerified(event: CustomEvent) {
@@ -102,12 +95,20 @@
                     </div>
                 {/if}
 
-                <button 
-                    class="w-full py-4 bg-white text-black font-black rounded-2xl hover:bg-slate-200 transition-colors"
-                    on:click={() => scanData = null}
-                >
-                    RESET SCANNER
-                </button>
+                <div class="flex gap-4">
+                    <button 
+                        class="flex-1 py-4 bg-slate-800 text-slate-300 font-bold rounded-2xl hover:bg-slate-700 transition-all border border-slate-700"
+                        on:click={handleRescan}
+                    >
+                        RE-SCAN
+                    </button>
+                    <button 
+                        class="flex-1 py-4 bg-white text-black font-black rounded-2xl hover:bg-slate-200 transition-colors shadow-lg"
+                        on:click={() => scanData = null}
+                    >
+                        DONE
+                    </button>
+                </div>
             </div>
         {/if}
     </div>

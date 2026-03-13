@@ -17,10 +17,12 @@ class AIService {
 
     constructor() {
         validateConfig();
+        console.log(`⚡ [AIService] Initializing Vertex AI: ${GCP_CONFIG.PROJECT_ID} in ${GCP_CONFIG.LOCATION}`);
         this.genAI = new GoogleGenAI({
             project: GCP_CONFIG.PROJECT_ID,
             location: GCP_CONFIG.LOCATION,
-            vertexai: true
+            vertexai: true,
+            apiVersion: 'v1beta1'
         } as any);
     }
 
@@ -28,38 +30,94 @@ class AIService {
      * Extracts and normalizes identity data from an image.
      * Uses Flash for speed on front-side, Pro for complex back-side recovery.
      */
-    async extractIdentity(rawExtracted: any, imageBase64?: string, sideHint: string = 'FRONT') {
+    async extractIdentity(rawExtracted: any, imageBase64?: string, sideHint: string = 'FRONT', forcePro: boolean = false) {
         try {
             const side = sideHint.toUpperCase();
-            const targetModelId = side === 'BACK' ? GEMINI_CONFIG.MODELS.PRO : GEMINI_CONFIG.MODELS.FLASH;
+            let targetModelId = side === 'BACK' ? GEMINI_CONFIG.MODELS.PRO : (forcePro ? GEMINI_CONFIG.MODELS.PRO : GEMINI_CONFIG.MODELS.FLASH);
             
-            console.log(`🧠 [AIService] Extracting ${side} via ${targetModelId}...`);
+            console.log(`🧠 [AIService] Extracting ${side} via ${targetModelId}... [ForcePro: ${forcePro}]`);
 
             const parts: any[] = [{ text: IDENTITY_SYSTEM_PROMPT(side, rawExtracted) }];
             if (imageBase64) {
                  const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
+                 console.log(`📏 [AIService] Payload Part Size: ${base64Data.length} chars (~${Math.round(base64Data.length * 3/4 / 1024)}KB)`);
                  parts.push({
                      inlineData: { mimeType: 'image/jpeg', data: base64Data }
                  });
             }
 
-            const result = await this.genAI.models.generateContent({
-                model: targetModelId,
-                contents: [{ role: 'user', parts }],
-                config: {
-                    responseMimeType: 'application/json',
-                    safetySettings: this.safetySettings
-                }
-            });
+            console.log(`⏳ [AIService] Awaiting response from ${targetModelId}...`);
+            const start = performance.now();
+            
+            // Heartbeat interval to signal it's not stalled
+            const heartbeat = setInterval(() => {
+                const elapsed = Math.round((performance.now() - start) / 1000);
+                console.log(`💓 [HEARTBEAT] AIService waiting for ${targetModelId}... (${elapsed}s elapsed)`);
+            }, 3000);
 
-            const text = result.response?.text() || '{}';
-            const parsed = JSON.parse(text);
+            let result;
+            try {
+                result = await this.genAI.models.generateContent({
+                    model: targetModelId,
+                    contents: [{ role: 'user', parts }],
+                    config: {
+                        responseMimeType: 'application/json',
+                        safetySettings: this.safetySettings,
+                        generationConfig: {
+                            temperature: 0.1,
+                            maxOutputTokens: 800,
+                            topP: 0.8
+                        }
+                    }
+                });
+            } finally {
+                clearInterval(heartbeat);
+            }
+            const duration = Math.round(performance.now() - start);
+
+            let text = '{}';
+            const candidate = result.candidates?.[0];
+            
+            if (candidate?.content?.parts?.[0]?.text) {
+                text = candidate.content.parts[0].text;
+            }
+
+            console.log(`💎 [AIService] Response received in ${duration}ms.`);
+            
+            if (text === '{}' || text === '') {
+                console.warn('⚠️ [AIService] Unexpected Empty Response. Diagnostics:');
+                console.warn(`  - Finish Reason: ${candidate?.finishReason}`);
+                console.warn(`  - Safety Ratings: ${JSON.stringify(candidate?.safetyRatings)}`);
+                console.warn(`  - Full Candidate: ${JSON.stringify(candidate)}`);
+            } else {
+                // Log a snippet for verification
+                console.log(`💎 [AIService] Extracted text: ${text.substring(0, 50)}...`);
+            }
+            
+            let parsed: any = {};
+            try {
+                parsed = JSON.parse(text);
+            } catch (e) {
+                console.error('❌ [AIService] JSON Parse Error:', e);
+            }
+
+            // ESCALATION LOGIC: Only escalate for BACK side (complex) or if FRONT is truly zero-signal.
+            const isZeroSignal = Object.keys(parsed).length < 1;
+            if (isZeroSignal && side === 'FRONT' && targetModelId !== GEMINI_CONFIG.MODELS.PRO && !forcePro) {
+                console.log(`⚠️ [AIService] 3.1 Signal empty. Escalating to 3.1 PRO Deep Think...`);
+                return this.extractIdentity(rawExtracted, imageBase64, sideHint, true); 
+            }
 
             // BMADv6 Standard Mapping (Ensuring Backward Compatibility)
             const firstName = parsed.firstName || rawExtracted.firstName || '';
             const lastName = parsed.lastName || rawExtracted.lastName || '';
-            const driverName = parsed.driverName || `${firstName} ${lastName}`.trim();
+            const driverName = parsed.driverName || (firstName || lastName ? `${firstName} ${lastName}`.trim() : rawExtracted.driverName || '');
             const idNumber = (parsed.idNumber || parsed.licenseNumber || rawExtracted.idNumber || rawExtracted.licenseNumber || '').toUpperCase().trim();
+
+            // Calculate confidence base on data density
+            const criticalFields = [firstName, lastName, idNumber, parsed.dob];
+            const filledCount = criticalFields.filter(f => f && f.length > 0).length;
+            const compositeConfidence = filledCount / criticalFields.length;
 
             return {
                 data: {
@@ -67,7 +125,7 @@ class AIService {
                     lastName,
                     driverName,
                     idNumber,
-                    licenseNumber: idNumber, // Normalize to both keys
+                    licenseNumber: idNumber,
                     dob: parsed.dob || rawExtracted.dob || '',
                     address: parsed.address || rawExtracted.address || '',
                     issueDate: parsed.issueDate || rawExtracted.issueDate || '',
@@ -77,7 +135,7 @@ class AIService {
                     documentDiscriminator: parsed.documentDiscriminator || rawExtracted.documentDiscriminator || '',
                     verificationStatus: parsed.verificationStatus || rawExtracted.verificationStatus || 'Verified',
                     full_extraction: parsed,
-                    confidence: 0.98 // Manual boost for semantic recovery pass
+                    confidence: compositeConfidence > 0 ? compositeConfidence : 0.01 
                 },
                 raw_log: `(via ${targetModelId}) Location: ${GCP_CONFIG.LOCATION}`
             };

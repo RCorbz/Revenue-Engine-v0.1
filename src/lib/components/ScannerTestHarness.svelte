@@ -35,12 +35,15 @@
         img.src = URL.createObjectURL(file);
     }
 
-    async function triggerCloudAI(base64: string) {
+    async function triggerCloudAI(base64: string, useMock: boolean = false) {
         try {
-            const res = await fetch('/api/intake/extract', {
+            const res = await fetch('/intake/extract', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ imageBase64: base64 })
+                body: JSON.stringify({ 
+                    image: base64,
+                    mock: useMock 
+                })
             });
             const result = await res.json();
             if (result.success && result.verified) {
@@ -77,8 +80,18 @@
             <span class="text-xs font-mono uppercase tracking-widest">{status}</span>
         </div>
     {:else}
-        <div class="text-[10px] text-slate-500 font-mono uppercase tracking-widest">
-            {status}
+        <div class="flex flex-col gap-3 pt-2">
+            <div class="text-[10px] text-slate-500 font-mono uppercase tracking-widest text-center">
+                {status}
+            </div>
+            
+            <button 
+                class="w-full py-3 bg-revenue/10 text-revenue border border-revenue/20 rounded-xl font-bold text-xs uppercase hover:bg-revenue/20 transition-all flex items-center justify-center gap-2"
+                on:click={() => triggerCloudAI('', true)}
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                Run Mock Submission
+            </button>
         </div>
     {/if}
 
