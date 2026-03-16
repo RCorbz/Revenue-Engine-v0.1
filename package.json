@@ -8,7 +8,8 @@
 		"build": "vite build",
 		"preview": "vite preview",
 		"start": "node build/index.js",
-		"test:sanity": "npx svelte-check --threshold error && npm run build"
+		"test:sanity": "npx svelte-check --threshold error && npm run build",
+		"boot": "powershell -ExecutionPolicy Bypass -File .\\scripts\\boot.ps1"
 	},
 	"dependencies": {
 		"@google-cloud/documentai": "^9.5.0",

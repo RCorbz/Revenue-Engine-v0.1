@@ -8,6 +8,7 @@ This project uses a hybrid approach to token optimization, combining **ToolHive*
 | :--- | :--- | :--- |
 | **ToolHive** | **Guardrail** | Enforces directory exclusions (`node_modules`, `build`, `.git`) and provides the `Lazy Load` registry for the Project Bible. |
 | **jcodemunch-mcp** | **Optimizer** | Provides AST-based symbol search (e.g., `outline_file`, `search_symbols`) to avoid reading redundant file content. |
+| **mcp-optimizer** | **Routing** | Evaluates tasks to find the most token-efficient tool path, balancing context and ensuring dynamic caching. |
 | **bible-server** | **Grounded Info** | Grants read-only filesystem access to project-specific documentation beyond the scope of local files. |
 
 ## 📖 The "Munch" Strategy (Token Optimization)
@@ -24,6 +25,8 @@ To maintain a high-velocity development cycle without hitting context limits:
     -   **Grounded OBT Injection**: Fetch OBT requirements only when needed via the `/obt-injection` workflow.
     -   **Feature-Completion Checkpoints**: Finalize features using the `/feature-completion` workflow to generate a Knowledge Item (KI) and "compress" the logic for future turns.
 5.  **AST Retrieval:** When examining complex logic within `.svelte`, `.ts`, or `.js` files, prefer using `jcodemunch-mcp` tools over `view_file` to "munch" (reduce) token consumption by retrieving only the necessary symbols.
+6.  **Dynamic Routing:** Use `mcp-optimizer` (`find_tool`) as a routing layer to evaluate tasks. This ensures you execute the most token-optimal toolpath before reading any contiguous file blocks.
+
 
 ---
 *Configured in mcp_config.json as standard `python -m jcodemunch_mcp.server`.*

@@ -63,50 +63,54 @@
             />
         {:else}
             <div class="bg-slate-900 rounded-3xl p-8 border border-slate-800 space-y-6 animate-in fade-in slide-in-from-bottom-4">
-                <div class="flex items-center justify-between">
-                    <h2 class="text-xl font-bold">Verification Success</h2>
-                    <span class="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest {scanData.source === 'edge' ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400'}">
-                        {scanData.source}
-                    </span>
-                </div>
+                <h2 class="text-xl font-bold mb-4">Assessment Pipeline</h2>
 
-                <div class="grid grid-cols-2 gap-4">
-                    <div class="space-y-1">
-                        <span class="text-[10px] text-slate-500 uppercase font-black block">First Name</span>
-                        <p class="font-mono text-sm">{scanData.firstName}</p>
+                <div class="space-y-3">
+                    <!-- 1. IDENTIFY CONFIRMED -->
+                    <div class="flex items-center gap-3 p-4 bg-slate-800/50 rounded-2xl border border-slate-700/50">
+                        <div class="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center text-green-500">
+                            <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                        </div>
+                        <div>
+                            <span class="text-sm font-bold text-white flex items-center gap-2">
+                                Identify Confirmed 
+                                <span class="text-[10px] bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full font-mono">{scanData.firstName}</span>
+                            </span>
+                        </div>
                     </div>
-                    <div class="space-y-1">
-                        <span class="text-[10px] text-slate-500 uppercase font-black block">Last Name</span>
-                        <p class="font-mono text-sm">{scanData.lastName}</p>
-                    </div>
-                    <div class="space-y-1">
-                        <span class="text-[10px] text-slate-500 uppercase font-black block">ID Number</span>
-                        <p class="font-mono text-sm">{scanData.idNumber}</p>
-                    </div>
-                    <div class="space-y-1">
-                        <span class="text-[10px] text-slate-500 uppercase font-black block">Date of Birth</span>
-                        <p class="font-mono text-sm">{scanData.dob}</p>
-                    </div>
-                </div>
 
-                {#if scanData.isExpired}
-                    <div class="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-400 text-xs font-bold text-center">
-                        ⚠️ THIS IDENTIFICATION IS EXPIRED
-                    </div>
-                {/if}
-
-                <div class="flex gap-4">
+                    <!-- 2. PRE-EXAM QUESTIONS -->
                     <button 
-                        class="flex-1 py-4 bg-slate-800 text-slate-300 font-bold rounded-2xl hover:bg-slate-700 transition-all border border-slate-700"
+                        type="button" 
+                        class="w-full flex items-center justify-between p-4 bg-slate-800 hover:bg-slate-700/80 active:scale-[0.98] rounded-2xl border border-slate-700 group transition-all duration-200"
+                        on:click={() => window.location.href = '/intake?step=2'}
+                    >
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-500 font-bold text-xs">2</div>
+                            <span class="text-sm font-bold text-slate-200 group-hover:text-white">Start Pre-Exam Questions</span>
+                        </div>
+                        <svg class="w-4 h-4 text-slate-400 group-hover:text-blue-400 group-hover:translate-x-0.5 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"></path></svg>
+                    </button>
+
+                    <!-- 3. MEDICAL EXAM -->
+                    <div class="flex items-center gap-3 p-4 bg-slate-900/40 opacity-40 rounded-2xl border border-slate-800/50 cursor-not-allowed">
+                        <div class="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-slate-500 font-bold text-xs border border-slate-700/30">3</div>
+                        <span class="text-sm font-bold text-slate-500">Start Medical Exam</span>
+                    </div>
+                </div>
+
+                <div class="pt-2 border-t border-slate-800/50 flex gap-3">
+                    <button 
+                        class="text-center w-full py-2.5 text-xs text-slate-500 hover:text-slate-300 transition-colors"
                         on:click={handleRescan}
                     >
-                        RE-SCAN
+                        Back to Scanner
                     </button>
                     <button 
-                        class="flex-1 py-4 bg-white text-black font-black rounded-2xl hover:bg-slate-200 transition-colors shadow-lg"
+                        class="text-center w-full py-2.5 text-xs text-slate-500 hover:text-slate-300 transition-colors"
                         on:click={() => scanData = null}
                     >
-                        DONE
+                        Cancel
                     </button>
                 </div>
             </div>

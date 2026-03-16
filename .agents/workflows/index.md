@@ -1,14 +1,15 @@
 ---
-description: Index Project (11.2 Munch Mode)
+description: Index Project (12.1 Munch Mode)
 ---
 
 # Trigger: /index
 
 ## 🤖 STEPS
-1. **Registry Sync:** Run `thv registry sync` to refresh the local vMCP map. (Note: use `-o` or `--optimize` for 11.2 Munch Mode synchronization if available).
+// turbo
+1. **Registry Sync:** Run `powershell -ExecutionPolicy Bypass -File .\scripts\boot.ps1` to refresh the local vMCP registry cache (replaces `registry sync` in 12.1).
 2. **Session Load:** Signal `THV_SESSION_V2` by setting the environment variable for the persistent metadata cache.
 3. **Munch Validation:** Verify that the "Project Bible" is successfully mapped as a `Lazy Load` resource in `.toolhive/context_map.xml`.
-4. **Savings Report:** Execute `thv status mcp-optimizer` or `jcodemunch` statistics to estimate current map savings.
+4. **Savings Report:** Consult `mcp-optimizer` token metrics for dynamic evaluations or use `jcodemunch` outlines to maintain token budget.
 
 ## 🎯 GOAL
-Report "11.2 SESSION_ACTIVE" and provide a total token-savings estimate for the current map.
+Report "12.1 SESSION_ACTIVE" and provide a total token-savings estimate for the current map using mcp-optimizer metrics.

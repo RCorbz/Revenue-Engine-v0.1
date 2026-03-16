@@ -8,26 +8,64 @@
     export let historyFields: any[];
     export let swipeProgress = 0;
 
+    $: missingVitals = [
+        { key: 'blood_pressure_sys', label: 'BP Systolic' },
+        { key: 'blood_pressure_dia', label: 'BP Diastolic' },
+        { key: 'vision_acuity_right', label: 'Vision Right' },
+        { key: 'vision_acuity_left', label: 'Vision Left' }
+    ].filter(f => !formValues[f.key]);
+
+    let lastLoggedIncrement = 0;
+
     function handleSwipeChange(e: any) {
-        swipeProgress = parseInt(e.target.value);
-        if (swipeProgress > 95) {
+        const val = parseInt(e.target.value);
+        swipeProgress = val;
+        
+        const currentIncrement = Math.floor(val / 10) * 10;
+        if (currentIncrement > lastLoggedIncrement) {
+             console.log(`[StepConfirm] Swipe Progress: ${currentIncrement}%`);
+             lastLoggedIncrement = currentIncrement;
+        }
+
+        if (val > 95) {
+            console.log('[StepConfirm] 🚀 Triggering Submit via Slider!');
             swipeProgress = 100;
             dispatch('submit');
         }
     }
-
+    
     function handleSwipeEnd() {
         if (swipeProgress <= 95) {
             swipeProgress = 0;
+            lastLoggedIncrement = 0; // Reset increments log
         }
     }
+
 </script>
 
 <div in:slide={{ axis: 'x', duration: 300 }} class="flex flex-col h-full bg-slate-900/40 p-4 rounded-xl border border-revenue/20 overflow-y-auto custom-scrollbar">
-    <h3 class="text-sm font-bold text-center mb-2">Final Review</h3>
-    <p class="text-xs text-slate-400 text-center mb-6">
+    <h3 class="text-sm font-bold text-center mb-1">Final Review</h3>
+    <p class="text-[11px] text-slate-400 text-center mb-4">
         Review your health snapshot. Swiping to submit will lock these values into the immutable vault.
     </p>
+
+    <!-- Missing Fields Prompt Review -->
+
+    {#if missingVitals.length > 0}
+        <div class="mb-4 bg-amber-500/10 border border-amber-500/30 p-2 rounded flex flex-col gap-1 text-[11px]">
+            <div class="font-bold text-amber-500 flex items-center gap-1">
+                <svg class="w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.268 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                Missing Field Notifications
+            </div>
+            <p class="text-slate-400">The PDF creator will fallback to empty strings or continuous simulations for the following nodes:</p>
+            <div class="flex flex-wrap gap-1 mt-1">
+                {#each missingVitals as field}
+                    <span class="bg-amber-500/20 text-amber-200 px-1.5 py-0.5 rounded font-mono text-[10px]">{field.label}</span>
+                {/each}
+            </div>
+        </div>
+    {/if}
+
 
     <div class="space-y-4 mb-auto">
         <div>

@@ -73,6 +73,8 @@ async function handleMockAction(action: string) {
             return MOCK_STRATEGY_BRIEFING;
         case 'VIEW_AUDIT_LOGS':
             return MOCK_AUDIT_LOGS;
+        case 'CREATE_PHI_RECORD':
+            return [{ id: "mock-tx-uuid-5875" }];
         case 'VAULT_WRITE':
             return "mock-tx-uuid-5875";
         default:

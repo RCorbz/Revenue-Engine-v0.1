@@ -3,7 +3,8 @@
     import { onMount } from 'svelte';
     import { fade } from 'svelte/transition';
     import type { IdentityData } from '$lib/utils/aamva';
-	import type { ActionData } from './$types';
+    import { page } from '$app/stores';
+    import type { ActionData } from './$types';
 
     // Modular Components
     import StepScan from '$lib/components/intake/StepScan.svelte';
@@ -16,9 +17,10 @@
 	let schemaData: { mcsa_requirements: any[]; modular_addons: any[] } | null = null;
 	let loadingSchema = true;
 
-	let currentStep = 1; // 1: Scan, 2: Vitals, 3: Health, 4: Confirm
+	let currentStep = Number($page.url.searchParams.get('step')) || 1; // 1: Scan, 2: Vitals, 3: Health, 4: Confirm
 	let formValues: Record<string, any> = {};
 	let formElement: HTMLFormElement = null as any;
+    let reviewedPdf = false;
 
     // Phase 1 State
 	let scanPhase: 'front' | 'back' | 'extracting' | 'review' | 'done' | 'manual' = 'front';
@@ -138,6 +140,13 @@
 							<input type="hidden" name="licenseNumber" value={scannerResult.licenseNumber} />
 						{/if}
 
+                        <!-- Persist dynamic step answers across conditional branch destructions -->
+                        {#each Object.entries(formValues) as [key, value]}
+                            {#if !['driverName', 'dob', 'licenseNumber'].includes(key)}
+                                <input type="hidden" name={key} value={value} />
+                            {/if}
+                        {/each}
+
 						<div class="flex-grow overflow-y-auto pr-2 pb-2 custom-scrollbar space-y-6">
 							{#if currentStep === 2}
 								<StepVitals {schemaData} bind:formValues />
@@ -151,7 +160,14 @@
                                     }}
                                 />
 							{:else if currentStep === 4}
-								<StepConfirm {formValues} {historyFields} on:submit={() => formElement.requestSubmit()} />
+								<StepConfirm 
+                                    {formValues} 
+                                    {historyFields} 
+                                    on:submit={() => {
+                                        console.log('📤 [INTAKE] Slider fully confirmed. Triggering requestSubmit() on parent form element.');
+                                        formElement.requestSubmit();
+                                    }} 
+                                />
 							{/if}
 						</div>
 
@@ -174,7 +190,40 @@
 		{/if}
 
 		{#if form?.success}
-			<div class="alert success" in:fade>Registration Successful! Record ID: <code>{form.id}</code></div>
+			<div class="alert success flex flex-col items-center gap-4 text-left" in:fade>
+				<div class="font-bold flex items-center gap-2">
+                    <svg class="w-5 h-5 text-green-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    Registration Successful! ID: <code>{form.id}</code>
+                </div>
+                {#if form.pdf}
+                    <div class="w-full mt-2 animate-in slide-in-from-bottom-2">
+                        <p class="text-[10px] text-slate-400 font-mono tracking-widest uppercase mb-1">Generated MCSA-5875 Review</p>
+                        <iframe 
+                            src="data:application/pdf;base64,{form.pdf}" 
+                            class="w-full h-[350px] border border-slate-800 rounded-2xl bg-slate-950/80 shadow-inner" 
+                            title="Medical Exam PDF"
+                        ></iframe>
+                        <p class="text-[10px] text-slate-500 mt-1 italic text-center">Self-managed local audit Simulation Template</p>
+                        
+                        <div class="mt-4 flex flex-col gap-3 border-t border-slate-800/50 pt-3">
+                            <label class="flex items-start gap-2 text-xs text-slate-300 cursor-pointer">
+                                <input type="checkbox" bind:checked={reviewedPdf} class="mt-0.5 rounded border-slate-700 bg-slate-800 text-revenue focus:ring-revenue" />
+                                <span class="leading-relaxed">I have fully reviewed the generated MCSA-5875 layout details with the patient and attest to its accuracy.</span>
+                            </label>
+
+                            <button 
+                                type="button" 
+                                disabled={!reviewedPdf} 
+                                class="w-full bg-revenue h-12 rounded-xl text-slate-950 font-bold uppercase tracking-widest text-xs disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-300 hover:bg-revenue/80 hover:scale-[1.01] flex items-center justify-center gap-1 shadow-md"
+                                on:click={() => window.location.href = '/dashboard'}
+                            >
+                                Continue To Medical Exam Pipeline
+                                <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                {/if}
+			</div>
 		{/if}
 		{#if form?.error}
 			<div class="alert error" in:fade>{form.message}</div>
